@@ -1,1 +1,37 @@
-# Environment config
+# Configuration for the MimicEnv RL Environment
+
+# Telemetry signals to use for the observation (error) vector.
+# These must match the sensor names in TelemetryStreamer.
+# NOTE: 'slipAngle' is a custom sensor we'll need to define.
+observation_keys:
+  - 'g-force-lateral'
+  - 'g-force-longitudinal'
+  - 'yaw_rate'
+  - 'roll_rate'
+  - 'pitch_rate'
+  - 'wheel_speed' # Average wheel speed
+
+# Action space definition.
+# Each action will be scaled from [-1, 1] to these physical ranges.
+action_parameter_mappings:
+  front_spring_rate: {min: 30000, max: 150000}  # N/m
+  rear_spring_rate: {min: 25000, max: 140000}   # N/m
+  rear_toe_angle: {min: -1.0, max: 1.0}        # degrees
+  ballast_pos_x: {min: -0.5, max: 0.5}          # meters from center
+
+# Reward function weights (higher value = more important to match)
+reward_weights:
+  g-force-lateral: 1.0
+  g-force-longitudinal: 0.8
+  yaw_rate: 1.2
+  roll_rate: 0.5
+  pitch_rate: 0.5
+  wheel_speed: 0.3
+  
+  # Penalties
+  action_smoothness_penalty: 0.05 # Penalizes large changes in action between steps
+  action_magnitude_penalty: 0.01  # Penalizes large action values overall
+
+# Episode termination conditions
+max_steps_per_episode: 2000 # Max length of a training trajectory
+damage_threshold: 1000      # Terminate if vehicle damage exceeds this value

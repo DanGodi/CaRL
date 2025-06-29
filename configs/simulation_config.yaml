@@ -1,1 +1,23 @@
-# Simulation config
+# General simulation settings and paths
+beamng_path: "C:/Program Files/BeamNG.tech-0.27"
+user_path: "C:/Users/YourUser/AppData/Local/BeamNG.tech"
+port: 64256
+
+# Paths (Use absolute paths for robustness, especially for the shared drive)
+# ON WINDOWS: "E:/chimera_project/data"
+# ON MACOS:   "/Volumes/SharedDrive/chimera_project/data"
+data_path: "E:/chimera_project/data" # CHANGE THIS TO YOUR SHARED DRIVE PATH
+
+target_data_filename: "target_m3_gridmap_slalom.csv"
+model_save_dirname: "training_runs"
+log_dirname: "tensorboard_logs"
+
+# Scenario Settings
+map: "gridmap_v2"
+base_vehicle_model: "etk800" # A stable car with good JBeam structure
+target_vehicle_model: "etk_k_series" # Standing in for an M3 for this example
+
+# Base vehicle MUST have a custom JBeam file with these active parts
+# This tells the simulation manager which vehicle part file to load.
+# The name 'chimera_base' will be the name of the custom part in the vehicle selector.
+base_vehicle_config_name: "chimera_base" 

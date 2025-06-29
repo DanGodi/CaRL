@@ -1,4 +1,35 @@
-data/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
 .env
+.venv
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data & Logs - These should live on a shared drive, not in Git.
+/data/
+/logs/
+/tensorboard_logs/
+*.csv
+*.json
+*.zip
+*.log
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
