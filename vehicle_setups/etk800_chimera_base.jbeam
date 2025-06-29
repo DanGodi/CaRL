@@ -1,1 +1,89 @@
-// JBeam config for active components
+// THIS IS A PARTIAL JBEAM FILE.
+// You would add this content into a new .jbeam file (e.g., etk800_chimera_base.jbeam)
+// and place it in your BeamNG user folder under:
+// /mods/unpacked/etk800_chimera/vehicles/etk800/
+// Then, you can select this "Chimera Base" part in the vehicle customization menu.
+
+{
+"etk800_chimera_base": {
+    "information":{
+        "authors":"Project Chimera",
+        "name":"Chimera Active Components (Empty)",
+        "value":500,
+    },
+    "slotType" : "etk800_body", // Attach this to the main body
+
+    // 1. DEFINE THE CONTROLLABLE VARIABLES IN GLOBALS
+    // These variables will be accessible by the LUA/electrics system.
+    "variables": [
+        ["name", "type", "unit", "category", "default", "min", "max", "title", "description"],
+        // Suspension
+        ["$chimera_spring_rate_F", "range", "N/m", "Suspension", 80000, 30000, 150000, "Front Spring Rate", "Real-time adjustable front spring rate"],
+        ["$chimera_spring_rate_R", "range", "N/m", "Suspension", 75000, 25000, 140000, "Rear Spring Rate", "Real-time adjustable rear spring rate"],
+        
+        // Alignment
+        ["$chimera_toe_R", "range", "deg", "Alignment", 0, -1.0, 1.0, "Rear Toe Angle", "Real-time adjustable rear toe"],
+
+        // Ballast
+        ["$chimera_ballast_x", "range", "m", "Chassis", 0, -0.5, 0.5, "Ballast X Position", "Movable ballast X position (longitudinal)"]
+    ],
+
+    // 2. CONNECT THESE GLOBALS TO THE ELECTRICS SYSTEM
+    // This allows Python via beamngpy to set their values in real-time.
+    // The key names here ('active_spring_F', etc.) are what we will use in our Python code.
+    "powertrain": [
+        ["type", "name", "inputName", "inputFactor"],
+        // Maps an electrics value to our global variable
+        ["electric_thruster", "chimera_control_spring_F", "active_spring_F", 1],
+        ["electric_thruster", "chimera_control_spring_R", "active_spring_R", 1],
+        ["electric_thruster", "chimera_control_toe_R", "active_toe_R", 1],
+        ["electric_thruster", "chimera_control_ballast_x", "active_ballast_x", 1]
+    ],
+    "mainController": [
+        // LUA controller to update the variables from electrics
+        {"lua": "
+            -- On every update, set the JBeam variable from the electrics value
+            controller.onUpdate = function(dt)
+                electrics.values.chimera_spring_rate_F = powertrain.chimera_control_spring_F.electricEnergy
+                electrics.values.chimera_spring_rate_R = powertrain.chimera_control_spring_R.electricEnergy
+                electrics.values.chimera_toe_R = powertrain.chimera_control_toe_R.electricEnergy
+                electrics.values.chimera_ballast_x = powertrain.chimera_control_ballast_x.electricEnergy
+            end
+        "}
+    ],
+
+    // 3. APPLY THE VARIABLES TO THE ACTUAL VEHICLE COMPONENTS
+    // This requires finding the relevant parts in the original ETK800 JBeam files
+    // and replacing the fixed values with our new variables.
+
+    // Example for front suspension springs:
+    "springs": [
+        ["type", "id1", "id2", "options"],
+        // Find the original front spring definition and change it from a fixed number
+        // to our variable '$chimera_spring_rate_F'.
+        // Original might look like: {"spring":55000, ...}
+        {"beamPrecompression":1, "beamType":"|NORMAL", "beamLongBound":1, "beamDeform":35000,"beamStrength":150000},
+        ["fs1r","fsp1r", {"spring":"$chimera_spring_rate_F", "damp":3500}],
+        ["fs1l","fsp1l", {"spring":"$chimera_spring_rate_F", "damp":3500}],
+        // ... more springs
+    ],
+
+    // Example for rear toe adjustment:
+    "suspension_r": {
+        "hubWheels": [
+             // Find the original rear hubWheel definition and modify the 'toeAngle' property.
+             // Original might be: ["rh4r", "rh3r", "rh5r", {"toeAngle":0.1, ...}]
+             ["rh4r", "rh3r", "rh5r", {"toeAngle":"$chimera_toe_R", "radius":0.34, ...}],
+             // ... and for the left side
+        ]
+    },
+
+    // Example for movable ballast:
+    "nodes": [
+         ["id", "posX", "posY", "posZ", "options"],
+         // Add a new node for our ballast. We control its 'posX' with our variable.
+         // '$chimera_ballast_x' will shift it forward/backward.
+         {"nodeWeight":50, "group":"chimera_ballast"}, // 50kg ballast
+         ["ballast_node", "$chimera_ballast_x", 0.0, 0.4]
+    ]
+}}
