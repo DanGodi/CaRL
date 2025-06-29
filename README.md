@@ -1,6 +1,5 @@
 Of course. Here is the complete README content formatted as a single markdown block for easy copying.
 
-```markdown
 # **Chimera - A Dynamic Vehicle Mimicry System**
 
 This project trains a Reinforcement Learning agent to control a car's active systems (suspension, ballast, alignment) in the BeamNG.tech physics simulator. The goal is to make a "base" car dynamically mimic the driving characteristics of a "target" vehicle with high fidelity.
@@ -128,4 +127,3 @@ python chimera/analysis/plot_evaluation.py --target_csv data/target_telemetry/ta
 *   **/scripts/**: High-level executable scripts that serve as the main entry points for running the project.
 *   **/data/**: (Not tracked by Git) The default directory for all generated data, including target telemetry, training logs, model checkpoints, and evaluation results.
 *   **/vehicle_setups/**: Contains example JBeam files demonstrating how to modify a vehicle for active control.
-```
