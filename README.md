@@ -1,6 +1,4 @@
-Of course. Here is the complete README content formatted as a single markdown block for easy copying.
-
-# **Chimera - A Dynamic Vehicle Mimicry System**
+# **CaRL - A Dynamic Vehicle Mimicry System**
 
 This project trains a Reinforcement Learning agent to control a car's active systems (suspension, ballast, alignment) in the BeamNG.tech physics simulator. The goal is to make a "base" car dynamically mimic the driving characteristics of a "target" vehicle with high fidelity.
 
