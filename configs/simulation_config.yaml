@@ -1,12 +1,12 @@
 # General simulation settings and paths
-beamng_path: "C:/Program Files/BeamNG.tech-0.27"
-user_path: "C:/Users/YourUser/AppData/Local/BeamNG.tech"
+beamng_path: "C:/Users/Dan/Desktop/BeamNG.tech.v0.35.5.0"
+user_path: "C:/Users/Dan/AppData/Local/BeamNG.drive"
 port: 64256
 
 # Paths (Use absolute paths for robustness, especially for the shared drive)
 # ON WINDOWS: "E:/chimera_project/data"
 # ON MACOS:   "/Volumes/SharedDrive/chimera_project/data"
-data_path: "E:/chimera_project/data" # CHANGE THIS TO YOUR SHARED DRIVE PATH
+data_path: "data"
 
 target_data_filename: "target_m3_gridmap_slalom.csv"
 model_save_dirname: "training_runs"
