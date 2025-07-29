@@ -1,4 +1,6 @@
 # scripts/01_generate_target_data.py
+# --- FULLY CORRECTED AND ROBUST VERSION ---
+
 import time
 import pandas as pd
 from pathlib import Path
@@ -15,7 +17,7 @@ def generate_target_data(config: dict):
     """
     sim_manager = None
     try:
-        # --- Part 1: Record a path by driving manually ---
+        # --- Part 1: Connect to a running game to find the player vehicle ---
         print("--- Path Recording Phase ---")
         print("Please connect to a running instance of BeamNG.tech.")
         print("Drive the target vehicle along your desired path.")
@@ -24,11 +26,17 @@ def generate_target_data(config: dict):
         sim_manager = SimulationManager(config['sim'])
         sim_manager.connect()
         
-        vehicles = sim_manager.bng.get_vehicles()
-        player_vehicle = next((v for v in vehicles.values() if v.is_player()), None)
+        # --- The Correct Vehicle Discovery Process ---
+        print("Getting active scenario from the simulator...")
+        scenario = sim_manager.bng.get_current_scenario() # This gets the currently loaded level context
+        
+        print("Finding all vehicles in the scenario...")
+        vehicles = scenario.find_vehicles() # Now we can find vehicles within that context
+        
+        player_vehicle = next((v for v in vehicles.values() if v.is_player()), None) # Find the one the user is controlling
         
         if not player_vehicle:
-            raise RuntimeError("Could not find a player-controlled vehicle in the simulation.")
+            raise RuntimeError("Could not find a player-controlled vehicle. Make sure you have spawned a car and can drive it.")
 
         print(f"Found player vehicle: {player_vehicle.vid}. Recording path now...")
         
@@ -40,39 +48,25 @@ def generate_target_data(config: dict):
             while True:
                 player_vehicle.sensors.poll()
                 pos = player_vehicle.state['pos']
-                # Record position and a default speed for the AI to target
-                # A more advanced version could record the actual speed here too.
                 script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': 1.0})
-                time.sleep(0.2) # Record a node every 200ms
+                time.sleep(0.2)
         except KeyboardInterrupt:
             print(f"\nPath recording stopped. Recorded {len(script)} nodes.")
 
-        sim_manager.close()
-        time.sleep(2) # Give BeamNG time to reset if needed
-
         # --- Part 2: Replay the path with AI and log telemetry ---
         print("\n--- Telemetry Logging Phase ---")
-        print("Relaunching simulation to replay the recorded path with AI.")
+        print("Setting up AI replay using the same vehicle...")
 
-        sim_manager = SimulationManager(config['sim'])
-        sim_manager.connect()
-        sim_manager.setup_scenario(spawn_target=False) # Spawn a fresh vehicle
-        
-        # We use the spawned vehicle as our target vehicle for the replay
-        target_vehicle = sim_manager.base_vehicle 
-        # Ensure it's the correct model from config
-        target_vehicle.props.model = config['sim']['target_vehicle_model']
+        target_vehicle = player_vehicle # Reuse the vehicle we found
 
         print("Teleporting to start and setting AI script...")
         start_pos = (script[0]['x'], script[0]['y'], script[0]['z'])
-        target_vehicle.teleport(start_pos)
+        target_vehicle.teleport(start_pos, reset=True)
         
         target_vehicle.ai.set_mode('script', looping=False)
         target_vehicle.ai.set_script(script)
 
-        # Attach sensors to log data
         obs_keys = config['env']['observation_keys']
-        # We also want to log speed and position to use in the environment
         position_keys = ['time', 'x', 'y', 'z', 'wheel_speed']
         all_keys_to_log = list(set(obs_keys + position_keys))
         
@@ -82,21 +76,22 @@ def generate_target_data(config: dict):
         telemetry_log = []
         start_time = time.time()
         
-        print("Logging data...")
-        # Log until the AI has completed the script
-        while target_vehicle.ai.get_current_cmd_id() < len(script) - 1:
-            state = streamer.get_state()
+        print("Logging data... This will end automatically when the path is complete.")
+        while len(telemetry_log) == 0 or target_vehicle.ai.is_script_done() is False:
+            # Poll sensors and vehicle state
+            sim_manager.bng.poll_sensors_and_state()
+            
+            state = streamer.get_state() # This now uses the pre-polled data
             pos = target_vehicle.state['pos']
             
             state['time'] = time.time() - start_time
             state['x'], state['y'], state['z'] = pos[0], pos[1], pos[2]
             
             telemetry_log.append(state)
-            time.sleep(1 / 50) # Log at ~50Hz
+            time.sleep(1 / 50)
 
         print(f"Logged {len(telemetry_log)} telemetry points.")
         
-        # Save to CSV
         output_path = Path(config['sim']['target_data_path'])
         output_path.parent.mkdir(parents=True, exist_ok=True)
         df = pd.DataFrame(telemetry_log)
