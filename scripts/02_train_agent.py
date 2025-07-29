@@ -4,9 +4,9 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.env_checker import check_env
 
-from chimera.utils.config_loader import load_configs
-from chimera.beamng_control.simulation_manager import SimulationManager
-from chimera.rl.mimic_env import MimicEnv
+from carlpack.utils.config_loader import load_configs
+from carlpack.beamng_control.simulation_manager import SimulationManager
+from carlpack.rl.mimic_env import MimicEnv
 
 def main():
     configs = load_configs()

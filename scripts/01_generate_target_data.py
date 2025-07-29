@@ -3,9 +3,9 @@ import time
 import pandas as pd
 from pathlib import Path
 
-from carl.beamng_control.simulation_manager import SimulationManager
-from carl.utils.config_loader import load_configs
-from carl.beamng_control.telemetry_streamer import TelemetryStreamer
+from carlpack.beamng_control.simulation_manager import SimulationManager
+from carlpack.utils.config_loader import load_configs
+from carlpack.beamng_control.telemetry_streamer import TelemetryStreamer
 
 def generate_target_data(config: dict):
     """

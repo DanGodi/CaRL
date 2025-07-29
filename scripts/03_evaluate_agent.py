@@ -5,9 +5,9 @@ from pathlib import Path
 import numpy as np
 
 from stable_baselines3 import PPO
-from chimera.utils.config_loader import load_configs
-from chimera.beamng_control.simulation_manager import SimulationManager
-from chimera.rl.mimic_env import MimicEnv
+from carlpack.utils.config_loader import load_configs
+from carlpack.beamng_control.simulation_manager import SimulationManager
+from carlpack.rl.mimic_env import MimicEnv
 
 def evaluate_agent(model_path: str, output_csv_name: str):
     """
