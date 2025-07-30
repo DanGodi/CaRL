@@ -27,7 +27,7 @@ class TelemetryStreamer:
         # --- API FIX APPLIED HERE ---
         # Access the data using dictionary-style square brackets.
         # We also add a check to make sure the sensor data exists before accessing it.
-        if 'electrics' in sensor_data:
+        if 'electrics' in sensor_data._sensors:
             electrics_data = sensor_data['electrics']
         else:
             electrics_data = {} # Default to empty dict if no data is present yet
