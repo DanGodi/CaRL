@@ -1,6 +1,3 @@
-# scripts/01_generate_target_data.py
-# --- FINAL AUTOMATED VERSION ---
-
 import time
 import pandas as pd
 from pathlib import Path
@@ -11,27 +8,22 @@ from carlpack.utils.config_loader import load_configs
 from carlpack.beamng_control.telemetry_streamer import TelemetryStreamer
 
 def generate_target_data(config: dict):
-    """
-    Generates target data in a fully automated way.
-    1. Launches a new BeamNG.tech instance.
-    2. Spawns the target car on the specified map.
-    3. Gives control to the user to drive and record a path.
-    4. Automatically replays the path with AI to generate a clean data log.
-    """
     sim_manager = None
     try:
         # --- Part 1: Launch Sim and Setup for Manual Driving ---
         sim_manager = SimulationManager(config['sim'])
-        sim_manager.launch() # Use launch() to create a dedicated instance
+        sim_manager.launch()
 
-        # Setup the scenario with the target vehicle model
-        # The setup_scenario method will handle map loading and vehicle spawning
-        sim_manager.setup_scenario(spawn_target=False)
+        target_model = config['sim']['target_vehicle_model']
+        target_config = config['sim'].get('target_vehicle_config', None)
+
+        sim_manager.setup_scenario(
+            vehicle_model=target_model,
+            vehicle_config=target_config,
+            spawn_target=False
+        )
         
-        # We use the 'base_vehicle' spawned by the manager as our target for this script
         player_vehicle = sim_manager.base_vehicle
-        # Make sure it's the correct model from the config
-        player_vehicle.model = config['sim']['target_vehicle_model']
 
         print("\n" + "="*50)
         print("--- READY FOR PATH RECORDING ---")
@@ -43,19 +35,29 @@ def generate_target_data(config: dict):
         script = []
         player_vehicle.ai.set_mode('manual')
         
-        # Loop to record path nodes until user presses ESC
-        # Using the 'keyboard' library is more reliable than Ctrl+C in this context
-        while not keyboard.is_pressed('esc'):
-            player_vehicle.sensors.poll()
-            pos = player_vehicle.state['pos']
-            script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': 1.0})
-            time.sleep(0.2)
+        sim_manager.bng.resume()
         
+        try:
+            while not keyboard.is_pressed('esc'):
+                # --- API FIX APPLIED HERE ---
+                # In this version of beamngpy, sensors.poll() updates both sensors and state.
+                player_vehicle.sensors.poll()
+                
+                pos = player_vehicle.state['pos']
+                script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': 1.0})
+                time.sleep(0.2)
+        finally:
+            sim_manager.bng.pause()
+
+        if not script:
+            print("No path was recorded. Exiting.")
+            return
+
         print(f"\nRecording stopped. Recorded {len(script)} nodes.")
 
         # --- Part 2: Replay the path with AI and log telemetry ---
         print("\n--- Telemetry Logging Phase ---")
-        print("Setting up AI replay using the same vehicle...")
+        print("Setting up AI replay...")
 
         target_vehicle = player_vehicle
 
@@ -71,22 +73,27 @@ def generate_target_data(config: dict):
         all_keys_to_log = list(set(obs_keys + position_keys))
         
         streamer = TelemetryStreamer(target_vehicle, all_keys_to_log)
-
-        sim_manager.bng.unpause()
+        
+        sim_manager.bng.resume()
+        
         telemetry_log = []
         start_time = time.time()
         
-        print("Logging data... This will end automatically when the path is complete.")
-        while len(telemetry_log) == 0 or target_vehicle.ai.is_script_done() is False:
-            sim_manager.bng.poll_sensors_and_state()
+        print("Logging data... This will end automatically.")
+        while len(telemetry_log) == 0 or not target_vehicle.ai.is_script_done():
+            # --- API FIX APPLIED HERE ---
+            # In this version of beamngpy, sensors.poll() updates both sensors and state.
+            target_vehicle.sensors.poll()
             
-            state = streamer.get_state()
+            # The streamer's get_state now requires the polled sensor data
+            processed_state = streamer.get_state(target_vehicle.sensors)
+            
             pos = target_vehicle.state['pos']
+            processed_state['time'] = time.time() - start_time
+            processed_state['x'], processed_state['y'], processed_state['z'] = pos[0], pos[1], pos[2]
             
-            state['time'] = time.time() - start_time
-            state['x'], state['y'], state['z'] = pos[0], pos[1], pos[2]
-            
-            telemetry_log.append(state)
+            telemetry_log.append(processed_state)
+            sim_manager.bng.step(1)
             time.sleep(1 / 50)
 
         print(f"Logged {len(telemetry_log)} telemetry points.")
@@ -102,7 +109,5 @@ def generate_target_data(config: dict):
             sim_manager.close()
 
 if __name__ == '__main__':
-    # Add a new dependency for keyboard input
-    # In your terminal (with venv active): pip install keyboard
     configs = load_configs()
     generate_target_data(configs)

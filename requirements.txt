@@ -1,5 +1,5 @@
 # Core Simulation and RL
-beamngpy==1.27
+beamngpy==1.33.1
 stable-baselines3[extra]==2.1.0
 gymnasium==0.29.1 # Use Gymnasium as it's the successor to Gym
 torch            # Stable-Baselines3 will use this

@@ -31,44 +31,43 @@ class SimulationManager:
         except Exception as e:
             print(f"FATAL: Failed to launch. Is the 'beamng_path' in your config correct?")
             raise e
-            
-    def setup_scenario(self, spawn_target=False):
+    
+    def setup_scenario(self, vehicle_model, vehicle_config=None, spawn_target=False):
         """
-        Creates and loads the scenario with the base and (optionally) target vehicles.
+        Creates and loads a scenario with a primary vehicle.
         """
         if not self.bng:
-            raise ConnectionError("Cannot setup scenario. Must call launch() or connect() first.")
+            raise ConnectionError("Cannot setup scenario. Must call launch() first.")
 
         map_name = self.config['map']
         scenario_name = "carl_scenario"
         
-        # Create a new scenario object
-        self.scenario = Scenario(map_name, scenario_name, description="CaRL training scenario")
+        self.scenario = Scenario(map_name, scenario_name, description="CaRL scenario")
         
-        # Create the base vehicle that our RL agent will control
-        # The name 'base_car' is a temporary vehicle ID used by beamngpy
+        # Create the primary vehicle for this scenario
+        # We now pass the model and config as arguments
         self.base_vehicle = Vehicle('base_car', 
-                                    model=self.config['base_vehicle_model'],
-                                    part_config=f"vehicles/{self.config['base_vehicle_model']}/{self.config['base_vehicle_config_name']}.pc")
+                                    model=vehicle_model,
+                                    part_config=vehicle_config) # Use the provided config
+        
         self.base_vehicle.color = 'Blue'
         self.scenario.add_vehicle(self.base_vehicle, pos=(-717, 101, 118), rot_quat=(0, 0, 0.38, 0.92))
 
-        # Optionally spawn a second vehicle to represent the target visually
+        # This part remains the same, for spawning a second visual car if needed
         if spawn_target:
             self.target_vehicle = Vehicle('target_car', model=self.config['target_vehicle_model'])
             self.target_vehicle.color = 'Green'
             self.target_vehicle.ai.set_mode('disabled')
             self.scenario.add_vehicle(self.target_vehicle, pos=(-717, 105, 118), rot_quat=(0, 0, 0.38, 0.92))
 
-        # Finalize and load the scenario into the simulator
+        # Finalize and load the scenario
         self.scenario.make(self.bng)
         self.bng.load_scenario(self.scenario)
         print(f"Scenario '{scenario_name}' loaded on map '{map_name}'.")
         self.bng.start_scenario()
         
-        # Pause the simulation immediately to allow for controlled steps
         self.bng.pause() 
-        self.bng.step(5) # Step a few physics frames to let vehicles settle
+        self.bng.step(5)
         print("Simulation paused and ready.")
 
     def apply_vehicle_controls(self, params: dict):
