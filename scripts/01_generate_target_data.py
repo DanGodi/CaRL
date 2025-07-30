@@ -2,6 +2,7 @@ import time
 import pandas as pd
 from pathlib import Path
 import keyboard
+import numpy as np  # Import numpy for distance calculation
 
 from carlpack.beamng_control.simulation_manager import SimulationManager
 from carlpack.utils.config_loader import load_configs
@@ -36,19 +37,19 @@ def generate_target_data(config: dict):
         player_vehicle.ai.set_mode('manual')
         
         sim_manager.bng.resume()
-        
+        recording_start_time = time.time()
         try:
             while not keyboard.is_pressed('esc'):
                 player_vehicle.sensors.poll()
-                
                 pos = player_vehicle.state['pos']
-                script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': 1.0})
-                time.sleep(0.2)
+                elapsed_time = time.time() - recording_start_time
+                script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': elapsed_time})
+                time.sleep(0.1)
         finally:
             sim_manager.bng.pause()
 
-        if not script:
-            print("No path was recorded. Exiting.")
+        if not script or len(script) < 5: # Need a few points to be a real path
+            print("No valid path recorded (at least 5 points needed). Exiting.")
             return
 
         print(f"\nRecording stopped. Recorded {len(script)} nodes.")
@@ -77,11 +78,35 @@ def generate_target_data(config: dict):
         telemetry_log = []
         start_time = time.time()
         
-        print("Logging data... This will end automatically.")
-        while len(telemetry_log) == 0 or not target_vehicle.ai.is_script_done():
+        # --- API FIX APPLIED HERE: The Distance Check Method ---
+        # Get the final waypoint's coordinates
+        last_waypoint = script[-1]
+        last_pos = np.array([last_waypoint['x'], last_waypoint['y'], last_waypoint['z']])
+        
+        # Define how close the car needs to be to the end to be considered "finished"
+        completion_threshold = 10.0  # in meters
+        
+        print("Logging data... This will end when the vehicle reaches the final waypoint.")
+        while True:
             target_vehicle.sensors.poll()
             
-            # The streamer's get_state now requires the polled sensor data
+            # Get the car's current position
+            current_pos_dict = target_vehicle.state['pos']
+            current_pos = np.array([current_pos_dict[0], current_pos_dict[1], current_pos_dict[2]])
+            
+            # Calculate the distance to the final waypoint
+            distance_to_end = np.linalg.norm(current_pos - last_pos)
+            
+            # Break the loop if the car is close enough to the end
+            if distance_to_end < completion_threshold:
+                print("Vehicle has reached the end of the path.")
+                break
+                
+            # Failsafe: Break if the log becomes excessively long (car is stuck)
+            if len(telemetry_log) > len(script) * 10:
+                print("Failsafe triggered: Log is too long. Assuming car is stuck.")
+                break
+
             processed_state = streamer.get_state(target_vehicle.sensors)
             
             pos = target_vehicle.state['pos']
