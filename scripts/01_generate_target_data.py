@@ -39,8 +39,6 @@ def generate_target_data(config: dict):
         
         try:
             while not keyboard.is_pressed('esc'):
-                # --- API FIX APPLIED HERE ---
-                # In this version of beamngpy, sensors.poll() updates both sensors and state.
                 player_vehicle.sensors.poll()
                 
                 pos = player_vehicle.state['pos']

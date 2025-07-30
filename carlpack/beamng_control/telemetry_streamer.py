@@ -1,69 +1,51 @@
-# chimera/beamng_control/telemetry_streamer.py
 from beamngpy import Vehicle, sensors
 import numpy as np
 
 class TelemetryStreamer:
-    """Attaches and polls sensors from a vehicle in BeamNG."""
+    """
+    Attaches and polls sensors from a vehicle in BeamNG.
+    This version is designed for beamngpy v1.33.1 and uses only the core 'Electrics' sensor.
+    """
 
     def __init__(self, vehicle: Vehicle, requested_sensors: list[str]):
-        """
-        Initializes and attaches the necessary sensors to the vehicle.
-
-        Args:
-            vehicle: The beamngpy.Vehicle object to monitor.
-            requested_sensors: A list of sensor names to collect.
-        """
+        """Initializes the streamer by creating and attaching the Electrics sensor."""
         self.vehicle = vehicle
         self.requested_sensors = requested_sensors
-        self.sensors = {}
+        
+        # In v1.33.1, you create the sensor object first...
+        self.electrics = sensors.Electrics()
+        # ...and then attach it to the vehicle with a chosen name.
+        self.vehicle.sensors.attach('electrics', self.electrics)
+        print("TelemetryStreamer: Attached Electrics sensor.")
 
-        # The Electrics sensor is the primary way to get most telemetry
-        electrics = sensors.Electrics()
-        self.sensors['electrics'] = electrics
-        
-        # Some values like G-forces require a specific sensor (IMU)
-        if any('g-force' in s for s in requested_sensors):
-            imu = sensors.IMU(
-                pos=(0, 0, 1.7), # Position relative to vehicle's origin
-                # I AM NOT SURE IF THIS ORIENTATION IS CORRECT.
-                # IT MIGHT NEED ROTATION TO ALIGN WITH THE VEHICLE AXES.
-                # USE (0, 0, 0) AND (1, 0, 0, 0) AND DEBUG THE OUTPUT.
-                dir=(0, 0, -1), up=(0, -1, 0)
-            )
-            self.sensors['imu'] = imu
-        
-        # Attach all created sensors to the vehicle
-        self.vehicle.sensors.attach_many(self.sensors)
-
-    def get_state(self) -> dict:
+    def get_state(self, sensor_data) -> dict:
         """
-        Polls the attached sensors and returns the latest vehicle state.
-        
-        Returns:
-            A dictionary where keys are sensor names and values are the readings.
+        Processes a pre-polled Sensors object to extract required values.
+        In v1.33.1, sensor_data is the vehicle.sensors object itself.
         """
-        # Poll the vehicle to get the latest sensor data
-        sensor_data = self.vehicle.sensors.poll()
-        
         state = {}
-        # Extract the required values from the polled data
+        # --- API FIX APPLIED HERE ---
+        # Access the data using dictionary-style square brackets.
+        # We also add a check to make sure the sensor data exists before accessing it.
+        if 'electrics' in sensor_data:
+            electrics_data = sensor_data['electrics']
+        else:
+            electrics_data = {} # Default to empty dict if no data is present yet
+        
         for key in self.requested_sensors:
-            val = 0.0 # Default value if sensor data is missing
-            if key == 'g-force-lateral' and 'imu' in sensor_data:
-                val = sensor_data['imu']['accX']
-            elif key == 'g-force-longitudinal' and 'imu' in sensor_data:
-                val = sensor_data['imu']['accY']
-            elif key == 'yaw_rate' and 'electrics' in sensor_data:
-                # Convert from rad/s to deg/s
-                val = np.rad2deg(sensor_data['electrics'].get('yawRate', 0))
-            elif key == 'roll_rate' and 'electrics' in sensor_data:
-                val = np.rad2deg(sensor_data['electrics'].get('rollRate', 0))
-            elif key == 'pitch_rate' and 'electrics' in sensor_data:
-                val = np.rad2deg(sensor_data['electrics'].get('pitchRate', 0))
-            elif key == 'wheel_speed' and 'electrics' in sensor_data:
-                # Average speed of all wheels
-                val = sensor_data['electrics'].get('wheelspeed', 0)
-            # Add other custom sensors here
+            val = 0.0
+            if key == 'g-force-lateral':
+                val = electrics_data.get('gforce_x', 0)
+            elif key == 'g-force-longitudinal':
+                val = electrics_data.get('gforce_y', 0)
+            elif key == 'yaw_rate':
+                val = np.rad2deg(electrics_data.get('yawRate', 0))
+            elif key == 'roll_rate':
+                val = np.rad2deg(electrics_data.get('rollRate', 0))
+            elif key == 'pitch_rate':
+                val = np.rad2deg(electrics_data.get('pitchRate', 0))
+            elif key == 'wheel_speed':
+                val = electrics_data.get('wheelspeed', 0)
             
             state[key] = val
             
@@ -71,4 +53,5 @@ class TelemetryStreamer:
 
     def close(self):
         """Detaches all sensors."""
+        # The detach_all method is the correct way to clean up.
         self.vehicle.sensors.detach_all()
