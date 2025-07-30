@@ -65,7 +65,7 @@ def generate_target_data(config: dict):
         start_pos = (script[0]['x'], script[0]['y'], script[0]['z'])
         target_vehicle.teleport(start_pos, reset=True)
         
-        target_vehicle.ai.set_mode('script', looping=False)
+        target_vehicle.ai.set_mode('script')
         target_vehicle.ai.set_script(script)
 
         obs_keys = config['env']['observation_keys']
@@ -81,8 +81,6 @@ def generate_target_data(config: dict):
         
         print("Logging data... This will end automatically.")
         while len(telemetry_log) == 0 or not target_vehicle.ai.is_script_done():
-            # --- API FIX APPLIED HERE ---
-            # In this version of beamngpy, sensors.poll() updates both sensors and state.
             target_vehicle.sensors.poll()
             
             # The streamer's get_state now requires the polled sensor data
