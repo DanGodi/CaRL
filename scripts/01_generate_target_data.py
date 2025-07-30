@@ -1,9 +1,10 @@
 # scripts/01_generate_target_data.py
-# --- FULLY CORRECTED AND ROBUST VERSION ---
+# --- FINAL AUTOMATED VERSION ---
 
 import time
 import pandas as pd
 from pathlib import Path
+import keyboard
 
 from carlpack.beamng_control.simulation_manager import SimulationManager
 from carlpack.utils.config_loader import load_configs
@@ -11,53 +12,52 @@ from carlpack.beamng_control.telemetry_streamer import TelemetryStreamer
 
 def generate_target_data(config: dict):
     """
-    Generates target data by first recording a path driven by the user,
-    and then having the AI replay that path to generate a clean, consistent
-    telemetry and speed profile log.
+    Generates target data in a fully automated way.
+    1. Launches a new BeamNG.tech instance.
+    2. Spawns the target car on the specified map.
+    3. Gives control to the user to drive and record a path.
+    4. Automatically replays the path with AI to generate a clean data log.
     """
     sim_manager = None
     try:
-        # --- Part 1: Connect to a running game to find the player vehicle ---
-        print("--- Path Recording Phase ---")
-        print("Please connect to a running instance of BeamNG.tech.")
-        print("Drive the target vehicle along your desired path.")
-        print("Press Ctrl+C in this console when you are finished driving.")
-
+        # --- Part 1: Launch Sim and Setup for Manual Driving ---
         sim_manager = SimulationManager(config['sim'])
-        sim_manager.connect()
-        
-        # --- The Correct Vehicle Discovery Process ---
-        print("Getting active scenario from the simulator...")
-        scenario = sim_manager.bng.get_current_scenario() # This gets the currently loaded level context
-        
-        print("Finding all vehicles in the scenario...")
-        vehicles = scenario.find_vehicles() # Now we can find vehicles within that context
-        
-        player_vehicle = next((v for v in vehicles.values() if v.is_player()), None) # Find the one the user is controlling
-        
-        if not player_vehicle:
-            raise RuntimeError("Could not find a player-controlled vehicle. Make sure you have spawned a car and can drive it.")
+        sim_manager.launch() # Use launch() to create a dedicated instance
 
-        print(f"Found player vehicle: {player_vehicle.vid}. Recording path now...")
+        # Setup the scenario with the target vehicle model
+        # The setup_scenario method will handle map loading and vehicle spawning
+        sim_manager.setup_scenario(spawn_target=False)
         
+        # We use the 'base_vehicle' spawned by the manager as our target for this script
+        player_vehicle = sim_manager.base_vehicle
+        # Make sure it's the correct model from the config
+        player_vehicle.model = config['sim']['target_vehicle_model']
+
+        print("\n" + "="*50)
+        print("--- READY FOR PATH RECORDING ---")
+        print("Simulator is ready. The BeamNG window is now active.")
+        print(f"Drive the '{player_vehicle.model}' on the '{config['sim']['map']}' map.")
+        print("\nPress 'ESC' key to stop recording.")
+        print("="*50 + "\n")
+
         script = []
         player_vehicle.ai.set_mode('manual')
         
-        # Loop to record position and speed nodes
-        try:
-            while True:
-                player_vehicle.sensors.poll()
-                pos = player_vehicle.state['pos']
-                script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': 1.0})
-                time.sleep(0.2)
-        except KeyboardInterrupt:
-            print(f"\nPath recording stopped. Recorded {len(script)} nodes.")
+        # Loop to record path nodes until user presses ESC
+        # Using the 'keyboard' library is more reliable than Ctrl+C in this context
+        while not keyboard.is_pressed('esc'):
+            player_vehicle.sensors.poll()
+            pos = player_vehicle.state['pos']
+            script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': 1.0})
+            time.sleep(0.2)
+        
+        print(f"\nRecording stopped. Recorded {len(script)} nodes.")
 
         # --- Part 2: Replay the path with AI and log telemetry ---
         print("\n--- Telemetry Logging Phase ---")
         print("Setting up AI replay using the same vehicle...")
 
-        target_vehicle = player_vehicle # Reuse the vehicle we found
+        target_vehicle = player_vehicle
 
         print("Teleporting to start and setting AI script...")
         start_pos = (script[0]['x'], script[0]['y'], script[0]['z'])
@@ -78,10 +78,9 @@ def generate_target_data(config: dict):
         
         print("Logging data... This will end automatically when the path is complete.")
         while len(telemetry_log) == 0 or target_vehicle.ai.is_script_done() is False:
-            # Poll sensors and vehicle state
             sim_manager.bng.poll_sensors_and_state()
             
-            state = streamer.get_state() # This now uses the pre-polled data
+            state = streamer.get_state()
             pos = target_vehicle.state['pos']
             
             state['time'] = time.time() - start_time
@@ -103,5 +102,7 @@ def generate_target_data(config: dict):
             sim_manager.close()
 
 if __name__ == '__main__':
+    # Add a new dependency for keyboard input
+    # In your terminal (with venv active): pip install keyboard
     configs = load_configs()
     generate_target_data(configs)
