@@ -72,8 +72,11 @@ class SimulationManager:
 
     def apply_vehicle_controls(self, params: dict):
         """Sets the active parameters on the base vehicle using the electrics system."""
-        self.base_vehicle.electrics.update(params)
-    
+        for key, value in params.items():
+            # Create a command like: "electrics.values.carl_spring_factor = 0.75"
+            lua_command = f"electrics.values.{key} = {value}"
+            self.base_vehicle.queue_lua_command(lua_command)
+
     def reset_vehicle_physics(self, vehicle: Vehicle):
         """Resets the physics state of a single vehicle."""
         # This is a more modern way to reset a vehicle without reloading the whole scenario

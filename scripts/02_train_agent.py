@@ -1,3 +1,6 @@
+# scripts/02_train_agent.py
+# --- FINAL VERSION confirmed with user's PDF documentation ---
+
 import os
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
@@ -14,28 +17,22 @@ def main():
 
     sim_manager = None
     try:
-        # 1. Setup the Simulation Manager and start BeamNG
         sim_manager = SimulationManager(sim_cfg)
-        sim_manager.connect()
-        # Spawn only the base vehicle for training
-        sim_manager.setup_scenario(spawn_target=False)
+        sim_manager.launch()
 
-        # 2. Create the Gym Environment
+        sim_manager.setup_scenario(
+            vehicle_model=sim_cfg['base_vehicle_model'],
+            vehicle_config=sim_cfg.get('base_vehicle_config', None)
+        )
+
         env = MimicEnv(sim_manager=sim_manager, config=configs)
         
-        # Optional: Check if the custom environment is valid
-        # check_env(env) 
-        # print("Environment check passed.")
-
-        # 3. Setup Callbacks
-        # Save a checkpoint of the model every N steps
         checkpoint_callback = CheckpointCallback(
             save_freq=50000,
             save_path=os.path.join(sim_cfg['model_save_path'], 'checkpoints'),
-            name_prefix='ppo_mimic'
+            name_prefix='ppo_carl'
         )
 
-        # 4. Setup and Train the RL Model
         model = PPO(
             env=env,
             tensorboard_log=sim_cfg['log_path'],
@@ -45,21 +42,17 @@ def main():
 
         print("\n" + "="*50)
         print("--- STARTING REINFORCEMENT LEARNING TRAINING ---")
-        print(f"Algorithm: PPO")
-        print(f"Total Timesteps: {train_cfg['total_timesteps']}")
         print(f"Logging to: {sim_cfg['log_path']}")
         print(f"Models will be saved in: {sim_cfg['model_save_path']}")
         print("="*50 + "\n")
 
-        # The main training loop
         model.learn(
             total_timesteps=train_cfg['total_timesteps'],
             callback=checkpoint_callback,
-            tb_log_name="PPO_Mimic_Run"
+            tb_log_name="PPO_CaRL_Run"
         )
         
-        # Save the final model
-        final_model_path = os.path.join(sim_cfg['model_save_path'], 'ppo_mimic_final')
+        final_model_path = os.path.join(sim_cfg['model_save_path'], 'ppo_carl_final')
         model.save(final_model_path)
 
         print("\n" + "="*50)
@@ -68,7 +61,6 @@ def main():
         print("="*50 + "\n")
 
     finally:
-        # Ensure the simulation is closed even if an error occurs
         if sim_manager:
             sim_manager.close()
 

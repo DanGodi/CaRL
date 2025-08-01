@@ -14,10 +14,7 @@ observation_keys:
 # Action space definition.
 # Each action will be scaled from [-1, 1] to these physical ranges.
 action_parameter_mappings:
-  front_spring_rate: {min: 30000, max: 150000}  # N/m
-  rear_spring_rate: {min: 25000, max: 140000}   # N/m
-  rear_toe_angle: {min: -1.0, max: 1.0}        # degrees
-  ballast_pos_x: {min: -0.5, max: 0.5}          # meters from center
+  carl_spring_factor: {min: 0.0, max: 1.0}         # meters from center
 
 # Reward function weights (higher value = more important to match)
 reward_weights:
