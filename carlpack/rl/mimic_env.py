@@ -4,8 +4,8 @@ from gymnasium import spaces
 import numpy as np
 import pandas as pd
 
-from carl.beamng_control.simulation_manager import SimulationManager
-from carl.beamng_control.telemetry_streamer import TelemetryStreamer
+from carlpack.beamng_control.simulation_manager import SimulationManager
+from carlpack.beamng_control.telemetry_streamer import TelemetryStreamer
 from .reward_functions import calculate_mimic_reward
 
 class MimicEnv(gym.Env):

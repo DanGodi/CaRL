@@ -11,7 +11,6 @@ from carlpack.beamng_control.telemetry_streamer import TelemetryStreamer
 def generate_target_data(config: dict):
     sim_manager = None
     try:
-        # --- Part 1: Launch Sim and Setup for Manual Driving ---
         sim_manager = SimulationManager(config['sim'])
         sim_manager.launch()
 
@@ -44,7 +43,7 @@ def generate_target_data(config: dict):
                 pos = player_vehicle.state['pos']
                 elapsed_time = time.time() - recording_start_time
                 script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': elapsed_time})
-                time.sleep(0.1)
+                time.sleep(0.02)
         finally:
             sim_manager.bng.pause()
 

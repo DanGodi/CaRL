@@ -1,4 +1,3 @@
-# scripts/02_train_agent.py
 import os
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
