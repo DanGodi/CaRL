@@ -19,7 +19,7 @@ class MimicEnv(gym.Env):
         
         self.target_df = pd.read_csv(self.sim_config['target_data_path'])
         self.target_telemetry_full = self.target_df[self.config['observation_keys']].to_numpy()
-        self.target_path = [{'x': row['x'], 'y': row['y'], 'z': row['z']} for _, row in self.target_df.iterrows()]
+        self.target_path = [{'x': row['x'], 'y': row['y'], 'z': row['z'], 't': row['time']} for _, row in self.target_df.iterrows()]
         
         # We get the speed from the 'wheel_speed' column which our data logger now creates
         self.target_speed_profile = self.target_df['wheel_speed'].to_numpy()
