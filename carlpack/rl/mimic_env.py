@@ -1,3 +1,6 @@
+# carlpack/rl/mimic_env.py
+# --- THE DEFINITIVE, DETERMINISTIC VERSION ---
+
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -21,17 +24,15 @@ class MimicEnv(gym.Env):
         self.target_df = pd.read_csv(self.sim_config['target_data_path'])
         self.target_telemetry_full = self.target_df[self.config['observation_keys']].to_numpy()
         
-        # This is the correctly named variable for your AI script
-        self.target_path = [{'x': row['x'], 'y': row['y'], 'z': row['z'], 't': row['time']} for _, row in self.target_df.iterrows()]
+        self.target_path_with_time = [
+            {'x': row['x'], 'y': row['y'], 'z': row['z'], 't': row['time']} 
+            for _, row in self.target_df.iterrows()
+        ]
         
         self.current_step_index = 0
-        self.start_time = 0
-        self.step_length = 1 / 20 # We will aim for a stable 20Hz control loop
-
+        
         self.action_param_map = self.config['action_parameter_mappings']
-        self.action_space = spaces.Box(
-            low=-1.0, high=1.0, shape=(len(self.action_param_map),), dtype=np.float32
-        )
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(len(self.action_param_map),), dtype=np.float32)
         self.last_action = np.zeros(self.action_space.shape, dtype=np.float32)
 
         num_obs_keys = len(self.config['observation_keys'])
@@ -41,10 +42,7 @@ class MimicEnv(gym.Env):
             dtype=np.float32
         )
         
-        self.telemetry_streamer = TelemetryStreamer(
-            self.sim_manager.base_vehicle, 
-            self.config['observation_keys']
-        )
+        self.telemetry_streamer = TelemetryStreamer(self.sim_manager.base_vehicle, self.config['observation_keys'])
         print("MimicEnv initialized.")
 
     def _scale_action(self, action: np.ndarray) -> dict:
@@ -57,11 +55,8 @@ class MimicEnv(gym.Env):
     def _get_observation(self) -> np.ndarray:
         current_telemetry_dict = self.telemetry_streamer.get_state(self.sim_manager.base_vehicle.sensors)
         current_telemetry_vec = np.array([current_telemetry_dict.get(key, 0) for key in self.config['observation_keys']])
-        
-        # Use min() to prevent index out of bounds on the very last step
         idx = min(self.current_step_index, len(self.target_telemetry_full) - 1)
         target_telemetry_vec = self.target_telemetry_full[idx]
-        
         error_vector = target_telemetry_vec - current_telemetry_vec
         return np.concatenate([error_vector, self.last_action]).astype(np.float32)
 
@@ -71,42 +66,34 @@ class MimicEnv(gym.Env):
         self.last_action = np.zeros(self.action_space.shape, dtype=np.float32)
 
         self.sim_manager.bng.pause()
-
-        # Forcefully disable the AI to clear its previous "finished" state.
         self.sim_manager.base_vehicle.ai.set_mode('disabled')
-        
-        # --- FIX APPLIED HERE ---
-        # Use the correct variable name: self.target_path
-        start_pos = (self.target_path[0]['x'], self.target_path[0]['y'], self.target_path[0]['z'])
+        start_pos = (self.target_path_with_time[0]['x'], self.target_path_with_time[0]['y'], self.target_path_with_time[0]['z'])
         self.sim_manager.base_vehicle.teleport(start_pos, reset=True)
-        
-        # Give the AI the new script.
+        self.sim_manager.base_vehicle.sensors.poll()
         self.sim_manager.base_vehicle.ai.set_mode('script')
-        self.sim_manager.base_vehicle.ai.set_script(self.target_path)
-        
+        self.sim_manager.base_vehicle.ai.set_script(self.target_path_with_time)
         initial_action = np.zeros(self.action_space.shape)
         initial_params = self._scale_action(initial_action)
         self.sim_manager.apply_vehicle_controls(initial_params)
         
-        # Unpause the simulation to let it run freely
-        self.sim_manager.bng.resume()
-        self.start_time = time.time()
+        # We start the episode paused, ready for the first step() call.
         
-        self.sim_manager.base_vehicle.sensors.poll()
         observation = self._get_observation()
         info = {}
         return observation, info
 
     def step(self, action: np.ndarray):
+        # --- THE STABLE, DETERMINISTIC LOOP ---
         scaled_params = self._scale_action(action)
         self.sim_manager.apply_vehicle_controls(scaled_params)
         
-        # --- FIX APPLIED HERE ---
-        # Use the stable "stepless" approach by just sleeping
-        time.sleep(self.step_length)
-        
-        # Update our internal timestep based on elapsed real-world time
-        self.current_step_index = int((time.time() - self.start_time) / self.step_length)
+        # Unpause, step the physics, then immediately re-pause.
+        self.sim_manager.bng.resume()
+        self.sim_manager.bng.step(20) # 20 physics steps per agent step
+        self.sim_manager.bng.pause()
+
+        # We now increment our step index manually. This is our reliable "clock".
+        self.current_step_index += 1
         
         terminated = False
         if self.current_step_index >= len(self.target_df) - 2:
@@ -121,13 +108,10 @@ class MimicEnv(gym.Env):
             current_state, target_state, self.last_action, action, self.config['reward_weights']
         )
         
-        # --- FIX APPLIED HERE ---
-        # Use the robust way to check for and access the damage sensor data
         if 'damage' in self.sim_manager.base_vehicle.sensors._sensors:
             damage_data = self.sim_manager.base_vehicle.sensors['damage']
         else:
             damage_data = {}
-            
         if damage_data.get('damage', 0) > self.config.get('damage_threshold', 1000):
             terminated = True
             reward -= 500
@@ -138,6 +122,7 @@ class MimicEnv(gym.Env):
         return observation, reward, terminated, truncated, info
 
     def close(self):
+        # ... (no changes needed here)
         print("Closing MimicEnv and simulation connection.")
         self.telemetry_streamer.close()
         self.sim_manager.close()
