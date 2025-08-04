@@ -112,7 +112,11 @@ class MimicEnv(gym.Env):
         )
         
         terminated = False
-        damage_data = self.sim_manager.base_vehicle.sensors.get('damage', {})
+        if 'damage' in self.sim_manager.base_vehicle.sensors._sensors:
+            damage_data = self.sim_manager.base_vehicle.sensors['damage']
+        else:
+            damage_data = {}
+            
         if damage_data.get('damage', 0) > self.config.get('damage_threshold', 1000):
             terminated = True
             reward -= 500
