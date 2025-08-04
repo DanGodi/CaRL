@@ -51,14 +51,14 @@ class SimulationManager:
                                     part_config=vehicle_config) # Use the provided config
         
         self.base_vehicle.color = 'Blue'
-        self.scenario.add_vehicle(self.base_vehicle, pos=(-337.682,-491.361,100.928), rot_quat=(0, 0, 1, 0))
+        self.scenario.add_vehicle(self.base_vehicle, pos=(5.660,50.301,100.928), rot_quat=(0, 0, 1, 0))
 
         # This part remains the same, for spawning a second visual car if needed
         if spawn_target:
             self.target_vehicle = Vehicle('target_car', model=self.config['target_vehicle_model'])
             self.target_vehicle.color = 'Green'
             self.target_vehicle.ai.set_mode('disabled')
-            self.scenario.add_vehicle(self.target_vehicle, pos=(-337.682,-491.361,100.928), rot_quat=(0, 0, 1, 0))
+            self.scenario.add_vehicle(self.target_vehicle, pos=(5.660,50.301,100.928), rot_quat=(0, 0, 1, 0))
 
         # Finalize and load the scenario
         self.scenario.make(self.bng)
