@@ -2,6 +2,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import pandas as pd
+import time
 
 from carlpack.beamng_control.simulation_manager import SimulationManager
 from carlpack.beamng_control.telemetry_streamer import TelemetryStreamer
@@ -19,12 +20,14 @@ class MimicEnv(gym.Env):
         
         self.target_df = pd.read_csv(self.sim_config['target_data_path'])
         self.target_telemetry_full = self.target_df[self.config['observation_keys']].to_numpy()
+        
+        # This is the correctly named variable for your AI script
         self.target_path = [{'x': row['x'], 'y': row['y'], 'z': row['z'], 't': row['time']} for _, row in self.target_df.iterrows()]
         
-        # We get the speed from the 'wheel_speed' column which our data logger now creates
-        self.target_speed_profile = self.target_df['wheel_speed'].to_numpy()
         self.current_step_index = 0
-        
+        self.start_time = 0
+        self.step_length = 1 / 20 # We will aim for a stable 20Hz control loop
+
         self.action_param_map = self.config['action_parameter_mappings']
         self.action_space = spaces.Box(
             low=-1.0, high=1.0, shape=(len(self.action_param_map),), dtype=np.float32
@@ -55,9 +58,11 @@ class MimicEnv(gym.Env):
         current_telemetry_dict = self.telemetry_streamer.get_state(self.sim_manager.base_vehicle.sensors)
         current_telemetry_vec = np.array([current_telemetry_dict.get(key, 0) for key in self.config['observation_keys']])
         
-        target_telemetry_vec = self.target_telemetry_full[self.current_step_index]
-        error_vector = target_telemetry_vec - current_telemetry_vec
+        # Use min() to prevent index out of bounds on the very last step
+        idx = min(self.current_step_index, len(self.target_telemetry_full) - 1)
+        target_telemetry_vec = self.target_telemetry_full[idx]
         
+        error_vector = target_telemetry_vec - current_telemetry_vec
         return np.concatenate([error_vector, self.last_action]).astype(np.float32)
 
     def reset(self, seed=None, options=None):
@@ -65,19 +70,29 @@ class MimicEnv(gym.Env):
         self.current_step_index = 0
         self.last_action = np.zeros(self.action_space.shape, dtype=np.float32)
 
+        self.sim_manager.bng.pause()
+
+        # Forcefully disable the AI to clear its previous "finished" state.
+        self.sim_manager.base_vehicle.ai.set_mode('disabled')
+        
+        # --- FIX APPLIED HERE ---
+        # Use the correct variable name: self.target_path
         start_pos = (self.target_path[0]['x'], self.target_path[0]['y'], self.target_path[0]['z'])
         self.sim_manager.base_vehicle.teleport(start_pos, reset=True)
-        self.sim_manager.base_vehicle.sensors.poll()
-
+        
+        # Give the AI the new script.
         self.sim_manager.base_vehicle.ai.set_mode('script')
         self.sim_manager.base_vehicle.ai.set_script(self.target_path)
         
-        self.sim_manager.bng.pause()
         initial_action = np.zeros(self.action_space.shape)
         initial_params = self._scale_action(initial_action)
         self.sim_manager.apply_vehicle_controls(initial_params)
-        self.sim_manager.bng.step(5)
         
+        # Unpause the simulation to let it run freely
+        self.sim_manager.bng.resume()
+        self.start_time = time.time()
+        
+        self.sim_manager.base_vehicle.sensors.poll()
         observation = self._get_observation()
         info = {}
         return observation, info
@@ -86,32 +101,28 @@ class MimicEnv(gym.Env):
         scaled_params = self._scale_action(action)
         self.sim_manager.apply_vehicle_controls(scaled_params)
         
-        if self.current_step_index < len(self.target_speed_profile):
-            target_speed_ms = self.target_speed_profile[self.current_step_index]
-            self.sim_manager.base_vehicle.ai.set_speed(target_speed_ms, 'aggressive')
+        # --- FIX APPLIED HERE ---
+        # Use the stable "stepless" approach by just sleeping
+        time.sleep(self.step_length)
         
-        self.sim_manager.bng.resume()
-        self.sim_manager.bng.step(10)
-        self.sim_manager.bng.pause()
-
-        self.current_step_index += 1
+        # Update our internal timestep based on elapsed real-world time
+        self.current_step_index = int((time.time() - self.start_time) / self.step_length)
         
-        if self.current_step_index >= len(self.target_df) - 1:
+        terminated = False
+        if self.current_step_index >= len(self.target_df) - 2:
             terminated = True
-            # Return a dummy observation as we are at the end
-            obs = self._get_observation()
-            return obs, 0, terminated, False, {}
-
+        
         self.sim_manager.base_vehicle.sensors.poll()
         observation = self._get_observation()
         
         current_state = self.telemetry_streamer.get_state(self.sim_manager.base_vehicle.sensors)
-        target_state = self.target_df.iloc[self.current_step_index].to_dict()
+        target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
         reward = calculate_mimic_reward(
             current_state, target_state, self.last_action, action, self.config['reward_weights']
         )
         
-        terminated = False
+        # --- FIX APPLIED HERE ---
+        # Use the robust way to check for and access the damage sensor data
         if 'damage' in self.sim_manager.base_vehicle.sensors._sensors:
             damage_data = self.sim_manager.base_vehicle.sensors['damage']
         else:
