@@ -14,7 +14,7 @@ observation_keys:
 # Action space definition.
 # Each action will be scaled from [-1, 1] to these physical ranges.
 action_parameter_mappings:
-  carl_spring_factor: {min: 0.0, max: 1.0}         # meters from center
+  carl_spring_factor: {min: -0.5, max: 1.5}         # meters from center
 
 # Reward function weights (higher value = more important to match)
 reward_weights:

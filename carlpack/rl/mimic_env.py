@@ -89,7 +89,7 @@ class MimicEnv(gym.Env):
         
         # Unpause, step the physics, then immediately re-pause.
         self.sim_manager.bng.resume()
-        self.sim_manager.bng.step(20) # 20 physics steps per agent step
+        self.sim_manager.bng.step(1) # 1 physics step per agent step
         self.sim_manager.bng.pause()
 
         # We now increment our step index manually. This is our reliable "clock".
