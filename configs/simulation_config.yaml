@@ -13,7 +13,7 @@ model_save_dirname: "training_runs"
 log_dirname: "tensorboard_logs"
 
 # Scenario Settings
-map: "italy"
+map: "gridmap_v2"
 base_vehicle_model: "etk800" # A stable car with good JBeam structure
 base_vehicle_config_name: "carl_base"
 target_vehicle_model: "bolide" # Standing in for an M3 for this example
