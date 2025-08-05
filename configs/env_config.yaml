@@ -9,7 +9,6 @@ observation_keys:
   - 'yaw_rate'
   - 'roll_rate'
   - 'pitch_rate'
-  - 'wheel_speed' # Average wheel speed
 
 # Action space definition.
 # Each action will be scaled from [-1, 1] to these physical ranges.

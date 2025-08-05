@@ -1,6 +1,3 @@
-# carlpack/rl/mimic_env.py
-# --- THE DEFINITIVE, DETERMINISTIC VERSION ---
-
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -53,7 +50,7 @@ class MimicEnv(gym.Env):
         return scaled_params
 
     def _get_observation(self) -> np.ndarray:
-        current_telemetry_dict = self.telemetry_streamer.get_state(self.sim_manager.base_vehicle.sensors)
+        current_telemetry_dict = self.telemetry_streamer.get_state()
         current_telemetry_vec = np.array([current_telemetry_dict.get(key, 0) for key in self.config['observation_keys']])
         idx = min(self.current_step_index, len(self.target_telemetry_full) - 1)
         target_telemetry_vec = self.target_telemetry_full[idx]
@@ -103,7 +100,7 @@ class MimicEnv(gym.Env):
         if self.current_step_index >= len(self.target_df) - 2:
             terminated = True
 
-        current_state = self.telemetry_streamer.get_state(self.sim_manager.base_vehicle.sensors)
+        current_state = self.telemetry_streamer.get_state()
         target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
         reward = calculate_mimic_reward(
             current_state, target_state, self.last_action, action, self.config['reward_weights']

@@ -1,6 +1,3 @@
-# scripts/02_train_agent.py
-# --- FINAL VERSION confirmed with user's PDF documentation ---
-
 import os
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
@@ -28,7 +25,7 @@ def main():
         env = MimicEnv(sim_manager=sim_manager, config=configs)
         
         checkpoint_callback = CheckpointCallback(
-            save_freq=50000,
+            save_freq=1000,
             save_path=os.path.join(sim_cfg['model_save_path'], 'checkpoints'),
             name_prefix='ppo_carl'
         )

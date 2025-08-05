@@ -71,7 +71,6 @@ def generate_target_data(config: dict):
         all_keys_to_log = list(set(obs_keys + position_keys))
         
         streamer = TelemetryStreamer(target_vehicle, all_keys_to_log, bng=sim_manager.bng)
-        
         sim_manager.bng.resume()
         
         telemetry_log = []
@@ -106,7 +105,7 @@ def generate_target_data(config: dict):
                 print("Failsafe triggered: Log is too long. Assuming car is stuck.")
                 break
 
-            processed_state = streamer.get_state(target_vehicle.sensors)
+            processed_state = streamer.get_state()
             
             pos = target_vehicle.state['pos']
             processed_state['time'] = time.time() - start_time
