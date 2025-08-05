@@ -42,7 +42,7 @@ class MimicEnv(gym.Env):
             dtype=np.float32
         )
         
-        self.telemetry_streamer = TelemetryStreamer(self.sim_manager.base_vehicle, self.config['observation_keys'])
+        self.telemetry_streamer = TelemetryStreamer(self.sim_manager.base_vehicle, self.config['observation_keys'], bng=self.sim_manager.bng)
         print("MimicEnv initialized.")
 
     def _scale_action(self, action: np.ndarray) -> dict:
@@ -86,7 +86,11 @@ class MimicEnv(gym.Env):
         # --- THE STABLE, DETERMINISTIC LOOP ---
         scaled_params = self._scale_action(action)
         self.sim_manager.apply_vehicle_controls(scaled_params)
-        
+
+        # Poll sensors BEFORE stepping the simulation
+        self.sim_manager.base_vehicle.sensors.poll()
+        observation = self._get_observation()
+
         # Unpause, step the physics, then immediately re-pause.
         self.sim_manager.bng.resume()
         self.sim_manager.bng.step(1) # 1 physics step per agent step
@@ -94,20 +98,17 @@ class MimicEnv(gym.Env):
 
         # We now increment our step index manually. This is our reliable "clock".
         self.current_step_index += 1
-        
+
         terminated = False
         if self.current_step_index >= len(self.target_df) - 2:
             terminated = True
-        
-        self.sim_manager.base_vehicle.sensors.poll()
-        observation = self._get_observation()
-        
+
         current_state = self.telemetry_streamer.get_state(self.sim_manager.base_vehicle.sensors)
         target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
         reward = calculate_mimic_reward(
             current_state, target_state, self.last_action, action, self.config['reward_weights']
         )
-        
+
         if 'damage' in self.sim_manager.base_vehicle.sensors._sensors:
             damage_data = self.sim_manager.base_vehicle.sensors['damage']
         else:
@@ -115,7 +116,7 @@ class MimicEnv(gym.Env):
         if damage_data.get('damage', 0) > self.config.get('damage_threshold', 1000):
             terminated = True
             reward -= 500
-        
+
         self.last_action = action
         truncated = False
         info = {}

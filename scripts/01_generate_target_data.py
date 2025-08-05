@@ -70,7 +70,7 @@ def generate_target_data(config: dict):
         position_keys = ['time', 'x', 'y', 'z', 'wheel_speed']
         all_keys_to_log = list(set(obs_keys + position_keys))
         
-        streamer = TelemetryStreamer(target_vehicle, all_keys_to_log)
+        streamer = TelemetryStreamer(target_vehicle, all_keys_to_log, bng=sim_manager.bng)
         
         sim_manager.bng.resume()
         
