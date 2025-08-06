@@ -47,9 +47,10 @@ class SimulationManager:
         # Create the primary vehicle for this scenario
         # We now pass the model and config as arguments
         self.base_vehicle = Vehicle('base_car', 
-                                    model=vehicle_model,
+                                    model=vehicle_model, license='CaRL', 
+                                    color='Blue',
                                     part_config=vehicle_config) # Use the provided config
-        
+
         self.base_vehicle.color = 'Blue'
         self.scenario.add_vehicle(self.base_vehicle, pos=(5.660,50.301,100.928), rot_quat=(0, 0, 1, 0))
 

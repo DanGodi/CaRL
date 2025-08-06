@@ -5,8 +5,7 @@ from pathlib import Path
 def load_configs(
     sim_cfg_path="configs/simulation_config.yaml",
     env_cfg_path="configs/env_config.yaml",
-    train_cfg_path="configs/train_ppo_config.yaml"
-) -> dict:
+    train_cfg_path="configs/train_ppo_config.yaml") -> dict:
     """Loads all necessary YAML configuration files into a single dictionary."""
     
     configs = {}

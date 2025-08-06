@@ -19,7 +19,7 @@ def main():
 
         sim_manager.setup_scenario(
             vehicle_model=sim_cfg['base_vehicle_model'],
-            vehicle_config=sim_cfg.get('base_vehicle_config', None)
+            vehicle_config=sim_cfg['base_vehicle_config']
         )
 
         env = MimicEnv(sim_manager=sim_manager, config=configs)

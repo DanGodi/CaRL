@@ -15,11 +15,6 @@ log_dirname: "tensorboard_logs"
 # Scenario Settings
 map: "gridmap_v2"
 base_vehicle_model: "etk800" # A stable car with good JBeam structure
-base_vehicle_config_name: "carl_base"
+base_vehicle_config: "vehicles/etk800/carl_base.pc"
 target_vehicle_model: "racetruck" # Standing in for an M3 for this example
-target_vehicle_config: "/vehicles/racetruck/vehicles/racetruck/tt2_spec.pc"
-
-# Base vehicle MUST have a custom JBeam file with these active parts
-# This tells the simulation manager which vehicle part file to load.
-# The name 'chimera_base' will be the name of the custom part in the vehicle selector.
-base_vehicle_config_name: "chimera_base" 
+target_vehicle_config: "C:/Users/Dan/Desktop/BeamNG.tech.v0.35.5.0/content/vehicles/racetruck.zip/vehicles/racetruck/tt2_spec.pc"
