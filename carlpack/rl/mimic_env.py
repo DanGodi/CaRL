@@ -65,7 +65,7 @@ class MimicEnv(gym.Env):
         self.sim_manager.bng.pause()
         self.sim_manager.base_vehicle.ai.set_mode('disabled')
         start_pos = (self.target_path_with_time[0]['x'], self.target_path_with_time[0]['y'], self.target_path_with_time[0]['z'])
-        self.sim_manager.base_vehicle.teleport(start_pos, reset=True)
+        self.sim_manager.base_vehicle.teleport(start_pos,(0, 0, 1, 0), reset=True)
         self.sim_manager.base_vehicle.sensors.poll()
         self.sim_manager.base_vehicle.ai.set_mode('script')
         self.sim_manager.base_vehicle.ai.set_script(self.target_path_with_time)
