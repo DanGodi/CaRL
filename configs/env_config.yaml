@@ -11,6 +11,7 @@ observation_keys:
   - 'pitch_rate'
   - 'x'
   - 'y'
+  - 'time'
 
 
 # Action space definition.

@@ -88,11 +88,6 @@ class MimicEnv(gym.Env):
         self.sim_manager.base_vehicle.sensors.poll()
         observation = self._get_observation()
 
-        # Unpause, step the physics, then immediately re-pause.
-        self.sim_manager.bng.resume()
-        self.sim_manager.bng.step(1) # 1 physics step per agent step
-        self.sim_manager.bng.pause()
-
         # We now increment our step index manually. This is our reliable "clock".
         self.current_step_index += 1
 

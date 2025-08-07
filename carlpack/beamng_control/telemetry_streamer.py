@@ -59,6 +59,8 @@ class TelemetryStreamer:
             elif key == 'pitch_rate':
                 # Pitch rate comes from the IMU's Y-axis angular velocity.
                 val = np.rad2deg(imu_data.get('angVelSmooth', [0, 0, 0])[1])
+            elif key == 'time':
+                val = imu_data.get('time', 0.0)
             
             state[key] = val
             

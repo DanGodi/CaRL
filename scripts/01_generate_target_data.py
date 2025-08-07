@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 import keyboard
 import numpy as np  # Import numpy for distance calculation
+from beamngpy import sensors
 
 from carlpack.beamng_control.simulation_manager import SimulationManager
 from carlpack.utils.config_loader import load_configs
@@ -22,8 +23,13 @@ def generate_target_data(config: dict):
             vehicle_config=target_config,
             spawn_target=False
         )
+
+        obs_keys = config['env']['observation_keys']
+        position_keys = ['time', 'x', 'y', 'z', 'wheel_speed']
+        all_keys_to_log = list(set(obs_keys + position_keys))
         
         player_vehicle = sim_manager.base_vehicle
+        streamer = TelemetryStreamer(player_vehicle, all_keys_to_log, bng=sim_manager.bng)
 
         print("\n" + "="*50)
         print("--- READY FOR PATH RECORDING ---")
@@ -36,15 +42,14 @@ def generate_target_data(config: dict):
         player_vehicle.ai.set_mode('manual')
         
         sim_manager.bng.resume()
-        sim_time = 0.0
-        dt = 1/50  # Assuming you want 50 Hz sampling
         try:
             while not keyboard.is_pressed('esc'):
                 player_vehicle.sensors.poll()
                 pos = player_vehicle.state['pos']
+                state = streamer.get_state()
+                sim_time = state['time']
                 script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': sim_time})
-                sim_time += dt
-                time.sleep(dt)
+                time.sleep(1/50)
 
         finally:
             sim_manager.bng.pause()
@@ -63,21 +68,13 @@ def generate_target_data(config: dict):
 
         print("Teleporting to start and setting AI script...")
         start_pos = (script[0]['x'], script[0]['y'], script[0]['z'])
-        target_vehicle.teleport(start_pos, reset=True)
-        
+        target_vehicle.teleport(start_pos, rot_quat=(0, 0, 1, 0), reset=True)
         target_vehicle.ai.set_mode('script')
         target_vehicle.ai.set_script(script)
 
-        obs_keys = config['env']['observation_keys']
-        position_keys = ['time', 'x', 'y', 'z', 'wheel_speed']
-        all_keys_to_log = list(set(obs_keys + position_keys))
-        
-        streamer = TelemetryStreamer(target_vehicle, all_keys_to_log, bng=sim_manager.bng)
         sim_manager.bng.resume()
         
         telemetry_log = []
-        sim_time = 0.0
-        dt = 1/50 
         
         # --- API FIX APPLIED HERE: The Distance Check Method ---
         # Get the final waypoint's coordinates
@@ -85,9 +82,10 @@ def generate_target_data(config: dict):
         last_pos = np.array([last_waypoint['x'], last_waypoint['y'], last_waypoint['z']])
         
         # Define how close the car needs to be to the end to be considered "finished"
-        completion_threshold = 10.0  # in meters
+        completion_threshold = 5.0  # in meters
         
         print("Logging data... This will end when the vehicle reaches the final waypoint.")
+        reset_time = state['time']
         while True:
             target_vehicle.sensors.poll()
             
@@ -109,15 +107,13 @@ def generate_target_data(config: dict):
                 break
 
             processed_state = streamer.get_state()
-            
+            processed_state['time'] = processed_state['time'] - reset_time
+
             pos = target_vehicle.state['pos']
-            processed_state['time'] = sim_time
             processed_state['x'], processed_state['y'], processed_state['z'] = pos[0], pos[1], pos[2]
             
             telemetry_log.append(processed_state)
-            sim_manager.bng.step(1)
-            sim_time += dt
-            time.sleep(dt)
+            time.sleep(1/50)
 
         print(f"Logged {len(telemetry_log)} telemetry points.")
         
