@@ -36,14 +36,16 @@ def generate_target_data(config: dict):
         player_vehicle.ai.set_mode('manual')
         
         sim_manager.bng.resume()
-        recording_start_time = time.time()
+        sim_time = 0.0
+        dt = 1/50  # Assuming you want 50 Hz sampling
         try:
             while not keyboard.is_pressed('esc'):
                 player_vehicle.sensors.poll()
                 pos = player_vehicle.state['pos']
-                elapsed_time = time.time() - recording_start_time
-                script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': elapsed_time})
-                time.sleep(0.02)
+                script.append({'x': pos[0], 'y': pos[1], 'z': pos[2], 't': sim_time})
+                sim_time += dt
+                time.sleep(dt)
+
         finally:
             sim_manager.bng.pause()
 
@@ -74,7 +76,8 @@ def generate_target_data(config: dict):
         sim_manager.bng.resume()
         
         telemetry_log = []
-        start_time = time.time()
+        sim_time = 0.0
+        dt = 1/50 
         
         # --- API FIX APPLIED HERE: The Distance Check Method ---
         # Get the final waypoint's coordinates
@@ -108,12 +111,13 @@ def generate_target_data(config: dict):
             processed_state = streamer.get_state()
             
             pos = target_vehicle.state['pos']
-            processed_state['time'] = time.time() - start_time
+            processed_state['time'] = sim_time
             processed_state['x'], processed_state['y'], processed_state['z'] = pos[0], pos[1], pos[2]
             
             telemetry_log.append(processed_state)
             sim_manager.bng.step(1)
-            time.sleep(1 / 50)
+            sim_time += dt
+            time.sleep(dt)
 
         print(f"Logged {len(telemetry_log)} telemetry points.")
         

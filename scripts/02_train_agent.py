@@ -25,7 +25,7 @@ def main():
         env = MimicEnv(sim_manager=sim_manager, config=configs)
         
         checkpoint_callback = CheckpointCallback(
-            save_freq=1000,
+            save_freq=20000,
             save_path=os.path.join(sim_cfg['model_save_path'], 'checkpoints'),
             name_prefix='ppo_carl'
         )

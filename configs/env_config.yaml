@@ -9,12 +9,17 @@ observation_keys:
   - 'yaw_rate'
   - 'roll_rate'
   - 'pitch_rate'
+  - 'x'
+  - 'y'
+
 
 # Action space definition.
 # Each action will be scaled from [-1, 1] to these physical ranges.
 action_parameter_mappings:
-  carl_stiffness_factor: {min: 0.0, max: 1.0}
-  carl_height_factor: {min: 0.0, max: 1.0}         # meters from center
+  carl_front_height_factor: {min: 0.0, max: 1.0}
+  carl_rear_height_factor: {min: 0.0, max: 1.0}
+  carl_front_stiffness_factor: {min: 0.0, max: 1.0}
+  carl_rear_stiffness_factor: {min: 0.0, max: 1.0}        # meters from center
 
 # Reward function weights (higher value = more important to match)
 reward_weights:
@@ -23,6 +28,10 @@ reward_weights:
   yaw_rate: 1.2
   roll_rate: 0.5
   pitch_rate: 0.5
+  x: 0.1
+  y: 0.1
+  z: 0.1
+  
   
   # Penalties
   action_smoothness_penalty: 0.05 # Penalizes large changes in action between steps
