@@ -16,7 +16,7 @@ def main():
 
     log_data = []
 
-    for episode in range(2):
+    for episode in range(3):
         obs, _ = env.reset()
         sim_manager.bng.resume()
         actions = []

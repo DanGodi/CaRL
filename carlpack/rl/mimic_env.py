@@ -67,8 +67,14 @@ class MimicEnv(gym.Env):
         start_pos = (self.target_path_with_time[0]['x'], self.target_path_with_time[0]['y'], self.target_path_with_time[0]['z'])
         self.sim_manager.base_vehicle.teleport(start_pos,(0, 0, 1, 0), reset=True)
         self.sim_manager.base_vehicle.sensors.poll()
+        current_state = self.telemetry_streamer.get_state()
+        current_sim_time = current_state['time']
+        time_offset_script = [
+            {'x': waypoint['x'], 'y': waypoint['y'], 'z': waypoint['z'], 't': waypoint['t'] + current_sim_time}
+            for waypoint in self.target_path_with_time
+        ]
         self.sim_manager.base_vehicle.ai.set_mode('script')
-        self.sim_manager.base_vehicle.ai.set_script(self.target_path_with_time)
+        self.sim_manager.base_vehicle.ai.set_script(time_offset_script)
         initial_action = np.zeros(self.action_space.shape)
         initial_params = self._scale_action(initial_action)
         self.sim_manager.apply_vehicle_controls(initial_params)
