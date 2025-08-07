@@ -17,5 +17,5 @@ ppo_params:
   policy_kwargs:
     # Custom MLP architecture: two hidden layers of 256 neurons
     net_arch:
-      - pi: [128, 128, 128]
-      - vf: [128, 128, 128]
+      - pi: [128, 128, 128, 128]
+      - vf: [128, 128, 128, 128]
