@@ -17,6 +17,7 @@ class MimicEnv(gym.Env):
         self.sim_manager = sim_manager
         self.config = config['env']
         self.sim_config = config['sim']
+        self.reset_time = 0.0
         
         self.target_df = pd.read_csv(self.sim_config['target_data_path'])
         self.target_telemetry_full = self.target_df[self.config['observation_keys']].to_numpy()
@@ -68,9 +69,9 @@ class MimicEnv(gym.Env):
         self.sim_manager.base_vehicle.teleport(start_pos,(0, 0, 1, 0), reset=True)
         self.sim_manager.base_vehicle.sensors.poll()
         current_state = self.telemetry_streamer.get_state()
-        current_sim_time = current_state['time']
+        self.reset_time = current_state['time']
         time_offset_script = [
-            {'x': waypoint['x'], 'y': waypoint['y'], 'z': waypoint['z'], 't': waypoint['t'] + current_sim_time}
+            {'x': waypoint['x'], 'y': waypoint['y'], 'z': waypoint['z'], 't': waypoint['t']}
             for waypoint in self.target_path_with_time
         ]
         self.sim_manager.base_vehicle.ai.set_mode('script')
@@ -79,10 +80,9 @@ class MimicEnv(gym.Env):
         initial_params = self._scale_action(initial_action)
         self.sim_manager.apply_vehicle_controls(initial_params)
         
-        # We start the episode paused, ready for the first step() call.
-        
         observation = self._get_observation()
         info = {}
+        self.sim_manager.bng.resume()
         return observation, info
 
     def step(self, action: np.ndarray):
@@ -97,7 +97,7 @@ class MimicEnv(gym.Env):
 
         target_idx = 0
         for i, target_time in enumerate(self.target_df['time']):
-            if target_time <= current_sim_time:
+            if target_time <= current_sim_time - self.reset_time:
                 target_idx = i
             else:
                 break
@@ -107,7 +107,7 @@ class MimicEnv(gym.Env):
         observation = self._get_observation()
 
         max_target_time = self.target_df['time'].iloc[-1]
-        terminated = current_sim_time >= max_target_time
+        terminated = current_sim_time - self.reset_time >= max_target_time
 
         current_state = self.telemetry_streamer.get_state()
         target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
