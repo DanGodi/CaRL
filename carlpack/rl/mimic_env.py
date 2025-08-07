@@ -86,14 +86,22 @@ class MimicEnv(gym.Env):
 
         # Poll sensors BEFORE stepping the simulation
         self.sim_manager.base_vehicle.sensors.poll()
+        current_state = self.telemetry_streamer.get_state()
+        current_sim_time = current_state['time']
+
+        target_idx = 0
+        for i, target_time in enumerate(self.target_df['time']):
+            if target_time <= current_sim_time:
+                target_idx = i
+            else:
+                break
+        
+        self.current_step_index = target_idx
+
         observation = self._get_observation()
 
-        # We now increment our step index manually. This is our reliable "clock".
-        self.current_step_index += 1
-
-        terminated = False
-        if self.current_step_index >= len(self.target_df) - 2:
-            terminated = True
+        max_target_time = self.target_df['time'].iloc[-1]
+        terminated = current_sim_time >= max_target_time
 
         current_state = self.telemetry_streamer.get_state()
         target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
