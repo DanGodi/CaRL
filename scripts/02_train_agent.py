@@ -46,7 +46,7 @@ def main():
         model.learn(
             total_timesteps=train_cfg['total_timesteps'],
             callback=checkpoint_callback,
-            tb_log_name="PPO_CaRL_Run"
+            tb_log_name="PPO_CaRL_Run", progress_bar=True
         )
         
         final_model_path = os.path.join(sim_cfg['model_save_path'], 'ppo_carl_final')
