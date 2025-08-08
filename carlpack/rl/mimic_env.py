@@ -20,6 +20,7 @@ class MimicEnv(gym.Env):
         
         self.target_df = pd.read_csv(self.sim_config['target_data_path'])
         self.target_telemetry_full = self.target_df[self.config['observation_keys']].to_numpy()
+        self.max_target_time = self.target_df['time'].iloc[-1]
 
         self.normalization_values = {}
         # We only need to calculate max values for the keys used in the reward function.
@@ -77,7 +78,6 @@ class MimicEnv(gym.Env):
         self.sim_manager.base_vehicle.ai.set_mode('disabled')
         start_pos = (self.target_path_with_time[0]['x'], self.target_path_with_time[0]['y'], self.target_path_with_time[0]['z'])
         self.sim_manager.base_vehicle.teleport(start_pos,(0, 0, 1, 0), reset=True)
-        self.sim_manager.base_vehicle.ai.set_mode('script')
         self.sim_manager.base_vehicle.ai.set_script(self.target_path_with_time)
         initial_action = np.zeros(self.action_space.shape)
         initial_params = self._scale_action(initial_action)
@@ -92,7 +92,6 @@ class MimicEnv(gym.Env):
         return observation, info
 
     def step(self, action: np.ndarray):
-        # --- THE STABLE, DETERMINISTIC LOOP ---
         scaled_params = self._scale_action(action)
         self.sim_manager.apply_vehicle_controls(scaled_params)
 
@@ -100,16 +99,12 @@ class MimicEnv(gym.Env):
         self.sim_manager.base_vehicle.sensors.poll()
         current_state = self.telemetry_streamer.get_state()
         elapsed_episode_time = current_state['time'] - self.reset_time
-
-        insertion_point = self.target_df['time'].searchsorted(elapsed_episode_time, side='right')
-        target_idx = max(0, insertion_point - 1)
-        
-        self.current_step_index = target_idx
-
+        current_y = current_state['y']
+        insertion_point = self.target_df['y'].searchsorted(current_y, side='right')
+        self.current_step_index = max(0, insertion_point - 1)
         observation = self._get_observation()
 
-        max_target_time = self.target_df['time'].iloc[-1]
-        terminated = elapsed_episode_time >= max_target_time
+        terminated = elapsed_episode_time >= self.max_target_time + 5
 
         target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
         reward = calculate_mimic_reward(

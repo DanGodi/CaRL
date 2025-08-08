@@ -61,7 +61,11 @@ class TelemetryStreamer:
                 val = np.rad2deg(imu_data.get('angVelSmooth', [0, 0, 0])[1])
             elif key == 'time':
                 val = imu_data.get('time', 0.0)
-            
+            elif key == 'y':
+                val = imu_data.get('pos', [0, 0, 0])[1]
+            elif key == 'x':
+                val = imu_data.get('pos', [0, 0, 0])[0]
+
             state[key] = val
             
         return state
