@@ -2,7 +2,6 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import pandas as pd
-import time
 
 from carlpack.beamng_control.simulation_manager import SimulationManager
 from carlpack.beamng_control.telemetry_streamer import TelemetryStreamer
