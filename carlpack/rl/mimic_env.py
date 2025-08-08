@@ -107,8 +107,6 @@ class MimicEnv(gym.Env):
         terminated = elapsed_episode_time >= self.max_target_time + 5
 
         target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
-        if np.random.rand() < 1/1000:
-            print(current_y, target_state)
 
         reward = calculate_mimic_reward(
             current_state, target_state, self.last_action, action, self.config['reward_weights'], self.normalization_values
