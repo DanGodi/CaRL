@@ -6,7 +6,8 @@ def calculate_mimic_reward(
     target_state: dict,
     last_action: np.ndarray,
     current_action: np.ndarray,
-    weights: dict
+    weights: dict,
+    normalization_values: dict
 ) -> float:
     """
     Calculates the reward for the current timestep based on mimicry error and penalties.
@@ -29,11 +30,9 @@ def calculate_mimic_reward(
     for key, weight in weights.items():
         if key in current_state and key in target_state:
             error = target_state[key] - current_state[key]
-            # Normalize the error to prevent certain high-magnitude signals from dominating
-            # This is a simple normalization; more sophisticated methods could be used.
-            # I AM MAKING AN ASSUMPTION THAT 'target_state[key]' IS NEVER ZERO.
-            # A SAFER METHOD WOULD BE TO PRE-CALCULATE MAX VALUES FOR EACH KEY.
-            normalized_error = error / (abs(target_state[key]) + 1e-6)
+            
+            max_val = normalization_values[key]
+            normalized_error = error / max_val
             total_reward -= (normalized_error ** 2) * weight
 
     # --- 2. Action Penalties (to encourage smooth and efficient control) ---
@@ -43,8 +42,8 @@ def calculate_mimic_reward(
         total_reward -= smoothness_penalty * weights['action_smoothness_penalty']
         
     # Penalty for large actions (encourages efficiency)
-    if 'action_magnitude_penalty' in weights:
+    """if 'action_magnitude_penalty' in weights:
         magnitude_penalty = np.sum(np.square(current_action))
-        total_reward -= magnitude_penalty * weights['action_magnitude_penalty']
+        total_reward -= magnitude_penalty * weights['action_magnitude_penalty']"""
         
     return total_reward

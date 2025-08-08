@@ -21,6 +21,17 @@ class MimicEnv(gym.Env):
         
         self.target_df = pd.read_csv(self.sim_config['target_data_path'])
         self.target_telemetry_full = self.target_df[self.config['observation_keys']].to_numpy()
+
+        self.normalization_values = {}
+        # We only need to calculate max values for the keys used in the reward function.
+        reward_keys = self.config.get('reward_weights', {}).keys()
+        for key in reward_keys:
+            if key in self.target_df.columns:
+                # Find the maximum absolute value for the column.
+                max_abs_val = self.target_df[key].abs().max()
+                # Store it, ensuring it's not zero to prevent division errors.
+                self.normalization_values[key] = max_abs_val if max_abs_val > 1e-6 else 1.0
+        
         
         self.target_path_with_time = [
             {'x': row['x'], 'y': row['y'], 'z': row['z'], 't': row['time']} 
@@ -67,18 +78,14 @@ class MimicEnv(gym.Env):
         self.sim_manager.base_vehicle.ai.set_mode('disabled')
         start_pos = (self.target_path_with_time[0]['x'], self.target_path_with_time[0]['y'], self.target_path_with_time[0]['z'])
         self.sim_manager.base_vehicle.teleport(start_pos,(0, 0, 1, 0), reset=True)
-        self.sim_manager.base_vehicle.sensors.poll()
-        current_state = self.telemetry_streamer.get_state()
-        self.reset_time = current_state['time']
-        time_offset_script = [
-            {'x': waypoint['x'], 'y': waypoint['y'], 'z': waypoint['z'], 't': waypoint['t']}
-            for waypoint in self.target_path_with_time
-        ]
         self.sim_manager.base_vehicle.ai.set_mode('script')
-        self.sim_manager.base_vehicle.ai.set_script(time_offset_script)
+        self.sim_manager.base_vehicle.ai.set_script(self.target_path_with_time)
         initial_action = np.zeros(self.action_space.shape)
         initial_params = self._scale_action(initial_action)
         self.sim_manager.apply_vehicle_controls(initial_params)
+        self.sim_manager.base_vehicle.sensors.poll()
+        current_state = self.telemetry_streamer.get_state()
+        self.reset_time = current_state['time']
         
         observation = self._get_observation()
         info = {}
@@ -93,26 +100,21 @@ class MimicEnv(gym.Env):
         # Poll sensors BEFORE stepping the simulation
         self.sim_manager.base_vehicle.sensors.poll()
         current_state = self.telemetry_streamer.get_state()
-        current_sim_time = current_state['time']
+        elapsed_episode_time = current_state['time'] - self.reset_time
 
-        target_idx = 0
-        for i, target_time in enumerate(self.target_df['time']):
-            if target_time <= current_sim_time - self.reset_time:
-                target_idx = i
-            else:
-                break
+        insertion_point = self.target_df['time'].searchsorted(elapsed_episode_time, side='right')
+        target_idx = max(0, insertion_point - 1)
         
         self.current_step_index = target_idx
 
         observation = self._get_observation()
 
         max_target_time = self.target_df['time'].iloc[-1]
-        terminated = current_sim_time - self.reset_time >= max_target_time
+        terminated = elapsed_episode_time >= max_target_time
 
-        current_state = self.telemetry_streamer.get_state()
         target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
         reward = calculate_mimic_reward(
-            current_state, target_state, self.last_action, action, self.config['reward_weights']
+            current_state, target_state, self.last_action, action, self.config['reward_weights'], self.normalization_values
         )
 
         if 'damage' in self.sim_manager.base_vehicle.sensors._sensors:

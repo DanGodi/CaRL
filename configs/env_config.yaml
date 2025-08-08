@@ -26,17 +26,17 @@ action_parameter_mappings:
 reward_weights:
   g-force-lateral: 1.0
   g-force-longitudinal: 0.8
-  yaw_rate: 1.2
-  roll_rate: 0.5
-  pitch_rate: 0.5
-  x: 0.1
-  y: 0.1
-  z: 0.1
+  yaw_rate: 0.5
+  roll_rate: 0.6
+  pitch_rate: 1.6
+  x: 0.3
+  y: 0.3
+  z: 0.01
   
   
   # Penalties
-  action_smoothness_penalty: 0.05 # Penalizes large changes in action between steps
-  action_magnitude_penalty: 0.01  # Penalizes large action values overall
+  action_smoothness_penalty: 0.1 # Penalizes large changes in action between steps
+  #action_magnitude_penalty: 0.0  # Penalizes large action values overall
 
 # Episode termination conditions
 max_steps_per_episode: 2000 # Max length of a training trajectory
