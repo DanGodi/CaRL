@@ -104,21 +104,13 @@ class MimicEnv(gym.Env):
         self.current_step_index = max(0, insertion_point - 1)
         observation = self._get_observation()
 
-        terminated = elapsed_episode_time >= self.max_target_time + 5
+        terminated = elapsed_episode_time >= self.max_target_time + 1
 
         target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
 
         reward = calculate_mimic_reward(
             current_state, target_state, self.last_action, action, self.config['reward_weights'], self.normalization_values
         )
-
-        if 'damage' in self.sim_manager.base_vehicle.sensors._sensors:
-            damage_data = self.sim_manager.base_vehicle.sensors['damage']
-        else:
-            damage_data = {}
-        if damage_data.get('damage', 0) > self.config.get('damage_threshold', 1000):
-            terminated = True
-            reward -= 500
 
         self.last_action = action
         truncated = False

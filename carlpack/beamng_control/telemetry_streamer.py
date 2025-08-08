@@ -50,6 +50,9 @@ class TelemetryStreamer:
             elif key == 'g-force-longitudinal':
                 # Longitudinal (front-back) Gs come from the IMU's X-axis of accSmooth.
                 val = imu_data.get('accSmooth', [0, 0, 0])[0]
+            elif key == 'g-force-vertical':
+                # Vertical (up-down) Gs come from the IMU's Z-axis of accSmooth.
+                val = imu_data.get('accSmooth', [0, 0, 0])[2]
             elif key == 'yaw_rate':
                 # Yaw rate comes from the IMU's Z-axis angular velocity.
                 val = np.rad2deg(imu_data.get('angVelSmooth', [0, 0, 0])[2])
