@@ -79,9 +79,7 @@ class MimicEnv(gym.Env):
         start_pos = (self.target_path_with_time[0]['x'], self.target_path_with_time[0]['y'], self.target_path_with_time[0]['z'])
         self.sim_manager.base_vehicle.teleport(start_pos,(0, 0, 1, 0), reset=True)
         self.sim_manager.base_vehicle.ai.set_script(self.target_path_with_time)
-        initial_action = np.zeros(self.action_space.shape)
-        initial_params = self._scale_action(initial_action)
-        self.sim_manager.apply_vehicle_controls(initial_params)
+        self._resume_pending = True
         self.sim_manager.base_vehicle.sensors.poll()
         current_state = self.telemetry_streamer.get_state()
         self.reset_time = current_state['time']
@@ -93,7 +91,12 @@ class MimicEnv(gym.Env):
 
     def step(self, action: np.ndarray):
         scaled_params = self._scale_action(action)
-        self.sim_manager.apply_vehicle_controls(scaled_params)
+        if self._resume_pending:
+            self.sim_manager.apply_vehicle_controls(scaled_params)
+            self.sim_manager.bng.resume()
+            self._resume_pending = False
+        else:
+            self.sim_manager.apply_vehicle_controls(scaled_params)
 
         # Poll sensors BEFORE stepping the simulation
         self.sim_manager.base_vehicle.sensors.poll()
@@ -101,12 +104,14 @@ class MimicEnv(gym.Env):
         elapsed_episode_time = current_state['time'] - self.reset_time
         current_y = current_state['y']
         insertion_point = self.target_df['y'].searchsorted(current_y, side='right')
-        self.current_step_index = max(0, insertion_point - 1)
+        self.current_step_index = max(0, insertion_point)
         observation = self._get_observation()
 
         terminated = elapsed_episode_time >= self.max_target_time + 1
 
         target_state = self.target_df.iloc[min(self.current_step_index, len(self.target_df) - 1)].to_dict()
+        if np.random.rand() < 1/1000:
+            print(current_y, target_state)
 
         reward = calculate_mimic_reward(
             current_state, target_state, self.last_action, action, self.config['reward_weights'], self.normalization_values

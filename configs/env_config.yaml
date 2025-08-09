@@ -31,7 +31,7 @@ reward_weights:
   roll_rate: 1.0
   pitch_rate: 3.0
   x: 0.6
-  y: 0.6
+  y: 0.1
   z: 0.0
   
   
