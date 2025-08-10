@@ -151,26 +151,34 @@ def main():
         finally:
             sim_manager.bng.pause()
         print("Mimic car (random-step) run complete.")
-        
+
         # 3) Mimic car with the most updated PPO model
         print("\n=== Running mimic car with latest PPO model ===")
-        sim_manager.setup_scenario(
-            vehicle_model=sim_cfg['base_vehicle_model'],
-            vehicle_config=sim_cfg.get('base_vehicle_config', None),
-            spawn_target=False
-        )
 
+        # Important: do NOT pre-setup the scenario here; MimicEnv.reset() will handle it.
         env = MimicEnv(sim_manager=sim_manager, config=configs)
         latest_model_path = _find_latest_model_path(sim_cfg)
         print(f"Loading model: {latest_model_path}")
-        model = PPO.load(latest_model_path, env=env, device="auto")
+        model = PPO.load(latest_model_path, device="auto")
 
         obs, _ = env.reset()
         done = False
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
+
+        # Safety cap to prevent infinite loops
+        max_steps = int((max_time + 5.0) * 120)
+        steps = 0
+
+        sim_manager.bng.resume()
+        try:
+            while not done and steps < max_steps:
+                action, _ = model.predict(obs, deterministic=True)
+                obs, reward, terminated, truncated, info = env.step(action)
+                done = terminated or truncated
+                steps += 1
+                time.sleep(1 / 50.0)
+        finally:
+            sim_manager.bng.pause()
+
         print("Mimic car (PPO) run complete.")
 
     finally:
