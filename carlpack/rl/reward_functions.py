@@ -25,8 +25,6 @@ def calculate_mimic_reward(
     total_reward = 0.0
     
     # --- 1. Mimicry Reward (primary objective) ---
-    # We use negative squared error. This penalizes large errors more heavily
-    # and creates a smooth reward landscape.
     for key, weight in weights.items():
         if key in current_state and key in target_state:
             error = target_state[key] - current_state[key]
@@ -36,12 +34,12 @@ def calculate_mimic_reward(
             total_reward -= (normalized_error ** 2) * weight
 
     # --- 2. Action Penalties (to encourage smooth and efficient control) ---
-    # Penalty for jerky actions (discourages rapid changes)
+    # Penalty for jerky actions
     if 'action_smoothness_penalty' in weights:
         smoothness_penalty = np.sum(np.square(current_action - last_action))
         total_reward -= smoothness_penalty * weights['action_smoothness_penalty']
         
-    # Penalty for large actions (encourages efficiency)
+    # Penalty for large actions
     """if 'action_magnitude_penalty' in weights:
         magnitude_penalty = np.sum(np.square(current_action))
         total_reward -= magnitude_penalty * weights['action_magnitude_penalty']"""

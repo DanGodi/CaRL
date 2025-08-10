@@ -1,6 +1,3 @@
-# scripts/03_evaluate_agent.py
-# Batch evaluation with cooldown and y-binned averaging vs target
-
 import argparse
 import time
 import math
@@ -46,27 +43,21 @@ def _bin_average_by_y(mimic_all: pd.DataFrame, target_df: pd.DataFrame) -> pd.Da
     For each interval [y_i, y_{i+1}), average mimic samples within that interval.
     If no samples fall in a bin, NaN is used.
     """
-    # Sort target by y to ensure monotonic bins
     target_sorted = target_df.sort_values('y').reset_index(drop=True)
     y_edges = target_sorted['y'].to_numpy()
     if len(y_edges) < 2:
         raise ValueError("Target telemetry must contain at least two rows with 'y' to form bins.")
 
-    # Columns to compare: target telemetry columns excluding position/time
     compare_cols = [c for c in target_sorted.columns if c not in ['time', 'x', 'y', 'z']]
 
-    # Sort mimic by y
     mimic_sorted = mimic_all.sort_values('y').reset_index(drop=True)
 
-    # Prepare result containers
     rows = []
-    # Use left-edge y and right-edge y for clarity; also provide mid-point for plotting
     for i in range(len(y_edges) - 1):
         y_left = y_edges[i]
         y_right = y_edges[i + 1]
         y_mid = 0.5 * (y_left + y_right)
 
-        # Samples in this bin
         in_bin = mimic_sorted[(mimic_sorted['y'] >= y_left) & (mimic_sorted['y'] < y_right)]
         row = {
             'y_left': y_left,
@@ -75,11 +66,9 @@ def _bin_average_by_y(mimic_all: pd.DataFrame, target_df: pd.DataFrame) -> pd.Da
             'count': int(len(in_bin)),
         }
 
-        # Target reference at left edge (row i)
         for col in compare_cols:
             row[f'target_{col}'] = target_sorted.loc[i, col] if col in target_sorted.columns else np.nan
 
-        # Mimic averages within bin
         for col in compare_cols:
             if col in mimic_sorted.columns and len(in_bin) > 0:
                 row[f'mimic_{col}'] = in_bin[col].mean()
@@ -106,10 +95,8 @@ def evaluate_batched(
     configs = load_configs()
     sim_cfg = configs['sim']
 
-    # Load target telemetry (used for bin edges and target lines)
     target_df = pd.read_csv(sim_cfg['target_data_path'])
 
-    # Accumulate all mimic samples across all episodes
     all_samples = []
 
     model = None
@@ -143,8 +130,6 @@ def evaluate_batched(
             print(f"Running {episodes_this_batch} episode(s) in this batch...")
             for ep in range(episodes_this_batch):
                 ep_df = _run_single_episode(env, model)
-                # Keep only numeric columns + y (for safety)
-                # Ensure 'y' is present for binning
                 if 'y' not in ep_df.columns:
                     print("Warning: no 'y' column found in telemetry; skipping episode.")
                     continue
@@ -162,7 +147,6 @@ def evaluate_batched(
                 except Exception:
                     pass
 
-        # Cooldown between batches if more remain
         if b < batches - 1 and cooldown_seconds > 0:
             print(f"Cooling down for {cooldown_seconds} seconds...")
             time.sleep(cooldown_seconds)
@@ -172,17 +156,14 @@ def evaluate_batched(
 
     mimic_all_df = pd.concat(all_samples, ignore_index=True)
 
-    # Bin and average by target y
     binned_df, compare_cols = _bin_average_by_y(mimic_all_df, target_df)
 
-    # Save aggregated CSV
     eval_dir = Path(sim_cfg['data_path']) / "evaluation_results"
     eval_dir.mkdir(parents=True, exist_ok=True)
     output_csv_path = eval_dir / output_csv_name
     binned_df.to_csv(output_csv_path, index=False)
     print(f"\nSaved binned evaluation CSV to: {output_csv_path}")
 
-    # Plot mimic averages vs target as a function of y
     plot_dir = Path(sim_cfg['data_path']) / "plots" / plot_dir_name
     plot_dir.mkdir(parents=True, exist_ok=True)
 
@@ -191,9 +172,9 @@ def evaluate_batched(
 
     for col in compare_cols:
         plt.figure(figsize=(14, 6))
-        # Target (step-wise at left edges approximated by plotting over midpoints)
+
         plt.plot(x, binned_df[f'target_{col}'], label=f'Target ({col})', color='green', linestyle='--')
-        # Mimic averages
+
         plt.plot(x, binned_df[f'mimic_{col}'], label=f'Mimic avg ({col})', color='blue', alpha=0.9)
 
         plt.title(f'Y-binned Comparison: {col}', fontsize=14)

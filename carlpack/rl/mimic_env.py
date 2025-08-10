@@ -23,13 +23,10 @@ class MimicEnv(gym.Env):
         self.max_target_time = self.target_df['time'].iloc[-1]
 
         self.normalization_values = {}
-        # We only need to calculate max values for the keys used in the reward function.
         reward_keys = self.config.get('reward_weights', {}).keys()
         for key in reward_keys:
             if key in self.target_df.columns:
-                # Find the maximum absolute value for the column.
                 max_abs_val = self.target_df[key].abs().max()
-                # Store it, ensuring it's not zero to prevent division errors.
                 self.normalization_values[key] = max_abs_val if max_abs_val > 1e-6 else 1.0
         
         
@@ -123,7 +120,6 @@ class MimicEnv(gym.Env):
         return observation, reward, terminated, truncated, info
 
     def close(self):
-        # ... (no changes needed here)
         print("Closing MimicEnv and simulation connection.")
         self.telemetry_streamer.close()
         self.sim_manager.close()

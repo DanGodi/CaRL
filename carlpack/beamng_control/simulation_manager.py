@@ -1,6 +1,3 @@
-# carl/beamng_control/simulation_manager.py
-# --- FULLY CORRECTED VERSION ---
-
 from beamngpy import BeamNGpy, Scenario, Vehicle
 
 class SimulationManager:
@@ -20,8 +17,7 @@ class SimulationManager:
         This is used for automated training and evaluation.
         """
         print("Attempting to launch a new BeamNG.tech instance...")
-        # The 'home' path points to the installation directory and is
-        # required to tell beamngpy where the .exe file is.
+        
         bng = BeamNGpy('localhost', self.config['port'], home=self.config['beamng_path'])
         try:
             # The launch=True flag tells open() to start the simulator
@@ -54,13 +50,6 @@ class SimulationManager:
         self.base_vehicle.color = 'Blue'
         self.scenario.add_vehicle(self.base_vehicle, pos=(5.660,-15,100.928), rot_quat=(0, 0, 1, 0))
 
-        # This part remains the same, for spawning a second visual car if needed
-        if spawn_target:
-            self.target_vehicle = Vehicle('target_car', model=self.config['target_vehicle_model'])
-            self.target_vehicle.color = 'Green'
-            self.target_vehicle.ai.set_mode('disabled')
-            self.scenario.add_vehicle(self.target_vehicle, pos=(5.660,-15,100.928), rot_quat=(0, 0, 1, 0))
-
         # Finalize and load the scenario
         self.scenario.make(self.bng)
         self.bng.load_scenario(self.scenario)
@@ -80,7 +69,7 @@ class SimulationManager:
 
     def reset_vehicle_physics(self, vehicle: Vehicle):
         """Resets the physics state of a single vehicle."""
-        # This is a more modern way to reset a vehicle without reloading the whole scenario
+        #reset a vehicle without reloading the whole scenario
         self.bng.teleport_vehicle(vehicle.vid, vehicle.state['pos'], vehicle.state['rot'])
         
     def close(self):

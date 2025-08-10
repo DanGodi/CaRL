@@ -1,7 +1,6 @@
 # Hyperparameters for the Stable-Baselines3 PPO algorithm
 total_timesteps: 1000000
 
-# See SB3 documentation for details on each parameter
 ppo_params:
   policy: 'MlpPolicy'
   learning_rate: 0.0003

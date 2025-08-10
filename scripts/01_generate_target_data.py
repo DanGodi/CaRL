@@ -2,7 +2,7 @@ import time
 import pandas as pd
 from pathlib import Path
 import keyboard
-import numpy as np  # Import numpy for distance calculation
+import numpy as np 
 from beamngpy import sensors
 
 from carlpack.beamng_control.simulation_manager import SimulationManager
@@ -54,13 +54,12 @@ def generate_target_data(config: dict):
         finally:
             sim_manager.bng.pause()
 
-        if not script or len(script) < 5: # Need a few points to be a real path
+        if not script or len(script) < 5:
             print("No valid path recorded (at least 5 points needed). Exiting.")
             return
 
         print(f"\nRecording stopped. Recorded {len(script)} nodes.")
 
-        # --- Part 2: Replay the path with AI and log telemetry ---
         print("\n--- Telemetry Logging Phase ---")
         print("Setting up AI replay...")
 
@@ -76,12 +75,9 @@ def generate_target_data(config: dict):
         
         telemetry_log = []
         
-        # --- API FIX APPLIED HERE: The Distance Check Method ---
-        # Get the final waypoint's coordinates
         last_waypoint = script[-1]
         last_pos = np.array([last_waypoint['x'], last_waypoint['y'], last_waypoint['z']])
         
-        # Define how close the car needs to be to the end to be considered "finished"
         completion_threshold = 5.0  # in meters
         
         print("Logging data... This will end when the vehicle reaches the final waypoint.")
@@ -89,19 +85,15 @@ def generate_target_data(config: dict):
         while True:
             target_vehicle.sensors.poll()
             
-            # Get the car's current position
             current_pos_dict = target_vehicle.state['pos']
             current_pos = np.array([current_pos_dict[0], current_pos_dict[1], current_pos_dict[2]])
             
-            # Calculate the distance to the final waypoint
             distance_to_end = np.linalg.norm(current_pos - last_pos)
             
-            # Break the loop if the car is close enough to the end
             if distance_to_end < completion_threshold:
                 print("Vehicle has reached the end of the path.")
                 break
                 
-            # Failsafe: Break if the log becomes excessively long (car is stuck)
             if len(telemetry_log) > len(script) * 10:
                 print("Failsafe triggered: Log is too long. Assuming car is stuck.")
                 break

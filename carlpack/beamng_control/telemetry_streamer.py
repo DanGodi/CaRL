@@ -29,9 +29,7 @@ class TelemetryStreamer:
         # Explicitly poll the AdvancedIMU sensor to get its data.
         imu_poll_result = self.advanced_imu.poll()
         
-        # --- THE DEFINITIVE FIX ---
-        # The poll result is a dictionary where keys are stringified numbers ("0.0", "1.0", etc.)
-        # and values are the reading dictionaries. We need the MOST RECENT reading.
+    
         if imu_poll_result:
             # Find the key for the last reading (e.g., "5.0") by converting keys to float for comparison.
             last_reading_key = max(imu_poll_result.keys(), key=float)
@@ -40,7 +38,6 @@ class TelemetryStreamer:
         else:
             # Default to an empty dictionary if the poll returns nothing.
             imu_data = {}
-        # --- END OF FIX ---
         
         for key in self.requested_sensors:
             val = 0.0

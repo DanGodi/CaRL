@@ -4,8 +4,6 @@ user_path: "C:/Users/Dan/AppData/Local/BeamNG.drive"
 port: 25252
 
 # Paths (Use absolute paths for robustness, especially for the shared drive)
-# ON WINDOWS: "E:/chimera_project/data"
-# ON MACOS:   "/Volumes/SharedDrive/chimera_project/data"
 data_path: "data"
 
 target_data_filename: "target_bolide.csv"
@@ -14,7 +12,7 @@ log_dirname: "tensorboard_logs"
 
 # Scenario Settings
 map: "gridmap_v2"
-base_vehicle_model: "etk800" # A stable car with good JBeam structure
+base_vehicle_model: "etk800" 
 base_vehicle_config: "vehicles/etk800/carl_base.pc"
-target_vehicle_model: "racetruck" # Standing in for an M3 for this example
+target_vehicle_model: "racetruck"
 target_vehicle_config: "C:/Users/Dan/Desktop/BeamNG.tech.v0.35.5.0/content/vehicles/racetruck.zip/vehicles/racetruck/tt2_spec.pc"
