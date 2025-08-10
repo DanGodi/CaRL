@@ -1,127 +1,147 @@
-# **CaRL - A Dynamic Vehicle Mimicry System**
+# CaRL — Dynamic Vehicle Mimicry for BeamNG.tech
 
-This project trains a Reinforcement Learning agent to control a car's active systems (suspension, ballast, alignment) in the BeamNG.tech physics simulator. The goal is to make a "base" car dynamically mimic the driving characteristics of a "target" vehicle with high fidelity.
+CaRL trains a reinforcement learning (RL) agent to make a configurable “base” car dynamically mimic a recorded “target” vehicle in BeamNG.tech. The agent observes the mismatch between the vehicles’ telemetry and adjusts active components (e.g., suspension factors) in real time to reduce the error.
 
-## **Project Overview**
+- Core environment: [`carlpack.rl.mimic_env.MimicEnv`](carlpack/rl/mimic_env.py)
+- Simulation orchestration: [`carlpack.beamng_control.simulation_manager.SimulationManager`](carlpack/beamng_control/simulation_manager.py)
+- Telemetry streaming: [`carlpack.beamng_control.telemetry_streamer.TelemetryStreamer`](carlpack/beamng_control/telemetry_streamer.py)
 
-The core idea is to create a "dynamic vehicle skin." The system takes a highly configurable base car and trains an AI policy to adjust its performance parameters in real-time. The policy's objective is to continuously modify these parameters so that the base car's telemetry data (G-forces, yaw rate, wheel speed, etc.) perfectly matches a pre-recorded telemetry trace from a target vehicle driving along the same path.
+Stable Baselines3 PPO is used for training and inference.
 
-The entire system is developed and validated within the high-fidelity physics environment, **BeamNG.tech**, ensuring the learned driving dynamics are physically plausible.
+---
 
-## **How It Works: The Core Concept**
+## Repository Structure
 
-This project is a real-time control problem solved using Reinforcement Learning (RL).
+- [`configs/`](configs/)
+  - [`simulation_config.yaml`](configs/simulation_config.yaml): BeamNG paths, vehicles, data/model locations.
+  - [`env_config.yaml`](configs/env_config.yaml): Observation keys, action parameter mappings, reward weights.
+  - [`train_ppo_config.yaml`](configs/train_ppo_config.yaml): PPO hyperparameters and training options.
+- [`carlpack/`](carlpack/)
+  - RL env: [`rl/mimic_env.py`](carlpack/rl/mimic_env.py)
+  - BeamNG control: [`beamng_control/simulation_manager.py`](carlpack/beamng_control/simulation_manager.py)
+  - Analysis: [`analysis/plot_rew.py`](carlpack/analysis/plot_rew.py)
+  - Utils: [`utils/config_loader.py`](carlpack/utils/config_loader.py)
+- [`scripts/`](scripts/)
+  - Target data: [`01_generate_target_data.py`](scripts/01_generate_target_data.py)
+  - Train PPO: [`02_train_agent.py`](scripts/02_train_agent.py)
+  - Evaluate model: [`03_evaluate_agent.py`](scripts/03_evaluate_agent.py)
+  - Resume training: [`04_resume_training.py`](scripts/04_resume_training.py)
+  - Compare runs: [`05_show_improvement.py`](scripts/05_show_improvement.py)
+- [`data/`](data/)
+  - Example target: [`target_bolide.csv`](data/target_bolide.csv)
+  - Results: [`evaluation_results/`](data/evaluation_results/), [`plots/`](data/plots/)
+  - Training outputs: [`training_runs/`](data/training_runs/), [`tensorboard_logs/`](data/tensorboard_logs/)
+- Root CSVs for convenience: [`training_reward.csv`](training_reward.csv), [`training_fps.csv`](training_fps.csv)
 
-*   **The Environment:** The BeamNG.tech simulation, containing our controllable base car.
-*   **The Agent:** A **Proximal Policy Optimization (PPO)** neural network agent from the `stable-baselines3` library. The agent learns a policy that maps observations to actions.
-*   **The Observation:** At each step, the agent observes the *error* between the target car's telemetry and the base car's current telemetry. It also sees the last action it took, giving it a sense of its current state.
-*   **The Action:** The agent outputs a set of continuous values that correspond to settings for the active components, such as `front_spring_rate`, `rear_toe_angle`, and `ballast_position`.
-*   **The Reward:** The agent is rewarded for minimizing the telemetry error. It is also given small penalties for making jerky, rapid changes to the controls or using extreme control inputs, encouraging smooth and efficient behavior.
+---
 
-The agent's goal is to learn a control policy that generalizes across different parts of a track, effectively learning the underlying physical "signature" of the target car.
+## Requirements
 
-## **System Requirements**
+- Python 3.9+
+- BeamNG.tech v0.27+ (Research license) and beamngpy
+- Windows recommended (tested)
+- GPU optional (PPO benefits)
 
-To run this project, you will need the following software installed:
-
-*   **Python 3.9+**
-*   **Git** for version control.
-*   **BeamNG.tech (v0.27+ with a Research License)**. The research license is required for the Python API (`beamngpy`) to function.
-
-## **Setup Instructions**
-
-Follow these steps to set up the project environment.
-
-**1. Clone the Repository**
-```bash
-git clone https://github.com/your-username/chimera_vehicle_mimicry.git
-cd chimera_vehicle_mimicry
-```
-
-**2. Create a Python Virtual Environment**
-It is highly recommended to use a virtual environment to manage dependencies.
-```bash
-python -m venv venv
-```
-Activate the environment. On Windows:
-```cmd
-.\venv\Scripts\activate
-```
-On macOS/Linux:
-```bash
-source venv/bin/activate
-```
-
-**3. Install Dependencies**
-Install all required Python packages from the `requirements.txt` file.
+Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-**4. Configure Project Paths (Critical Step)**
-You **MUST** edit the configuration file to tell the project where to find your BeamNG.tech installation and where to store data.
+---
 
-*   Open the file: `configs/simulation_config.yaml`
-*   Modify the following paths to match your system:
-    *   `beamng_path`: The absolute path to your BeamNG.tech installation folder.
-    *   `user_path`: The absolute path to your BeamNG.tech user folder (often in `AppData/Local` or `Documents`).
-    *   `data_path`: The path where all generated data, logs, and models will be stored. You can use a relative path like `"data"` to create a `data` folder inside the project directory, or an absolute path to another location.
+## Configuration
 
-**5. Configure the Vehicle JBeam (Critical Step)**
-For the RL agent to control the car, the BeamNG physics engine must be told which vehicle parameters are "active." This is done with a custom JBeam part file.
+Edit the files in [`configs/`](configs/):
 
-*   An example file is provided at `vehicle_setups/etk800_chimera_base.jbeam`.
-*   You must place this file (or your own modified version) into a BeamNG mod folder. A standard location is: `YourBeamNGUserFolder/mods/unpacked/your_mod_name/vehicles/etk800/`
-*   This allows you to select the "Chimera Active Components" part in the vehicle customization menu in-game, which enables the real-time control hooks. Without this, the simulation will not work.
+- [`simulation_config.yaml`](configs/simulation_config.yaml)
+  - beamng_path, user_path
+  - data_path (base folder for data, models, logs)
+  - target_data_path (CSV with recorded target telemetry)
+  - base_vehicle_model, target_vehicle_model, model_save_path
+- [`env_config.yaml`](configs/env_config.yaml)
+  - observation_keys: telemetry used by the agent
+  - action_parameter_mappings: controllable parameters with min/max (e.g., carl_* factors)
+  - reward_weights: shaping terms for tracking error and smoothness
+- [`train_ppo_config.yaml`](configs/train_ppo_config.yaml)
+  - PPO policy, learning rate, gamma, batch size, rollout length, etc.
 
-## **Usage Workflow**
+The environment reads configs via [`carlpack.utils.config_loader.load_configs`](carlpack/utils/config_loader.py).
 
-Once set up, the project is run using the scripts in the `/scripts` directory. Follow these steps in order.
+---
 
-**Step 1: Generate Target Telemetry Data**
-First, you need to create a ground-truth data file for the agent to mimic. This script records a target vehicle driving a path and saves its telemetry to a CSV file.
+## How It Works
 
-Launch BeamNG.tech and load into a map (e.g., Gridmap V2) with your chosen target vehicle. Then, run the following command in your terminal:
+- Environment: [`MimicEnv`](carlpack/rl/mimic_env.py) steps the base vehicle along the target’s path, exposing:
+  - Observations: error between target and base telemetry plus recent action.
+  - Actions: continuous control values defined in [`env_config.yaml`](configs/env_config.yaml) under action_parameter_mappings.
+  - Reward: negative tracking error with smoothness/penalty terms from reward_weights.
+- Simulation: [`SimulationManager`](carlpack/beamng_control/simulation_manager.py) handles BeamNG launching, scenario setup, vehicle control, and telemetry polling.
+
+---
+
+## Workflow
+
+1) Generate target telemetry (one-time per course/vehicle)
 ```bash
 python scripts/01_generate_target_data.py
 ```
-Follow the on-screen instructions to record the path. The output will be saved to the location specified by `data_path` in your config.
+- Drives the target vehicle along a course and saves CSV to simulation_config.data_path (see target_data_path).
 
-**Step 2: Train the Reinforcement Learning Agent**
-This is the main training process. The script will launch BeamNG, create the environment, and start the PPO agent's training loop. This process can take a significant amount of time.
-
+2) Train the PPO agent
 ```bash
 python scripts/02_train_agent.py
 ```
-*   **Monitoring:** You can monitor the training progress in real-time using TensorBoard. Open a second terminal, activate the virtual environment, and run:
-    ```bash
-    tensorboard --logdir data/tensorboard_logs
-    ```
-    (Assuming your `data_path` is set to `"data"`).
-
-**Step 3: Evaluate the Trained Model**
-After training, you can test your model's performance. This script loads a saved model and runs it in the simulation, saving the resulting telemetry from the mimic car.
-
+- Uses [`MimicEnv`](carlpack/rl/mimic_env.py) and saves checkpoints/final model under simulation_config.model_save_path.
+- Monitor with TensorBoard:
 ```bash
-python scripts/03_evaluate_agent.py --model_path path/to/your/model.zip
-```
-Replace `path/to/your/model.zip` with the actual path to a model file saved during training (e.g., `data/training_runs/ppo_mimic_final.zip`).
-
-**Step 4: Analyze and Plot the Results**
-Finally, use the provided analysis script to generate plots comparing the target vehicle's telemetry against your agent's performance.
-
-```bash
-python chimera/analysis/plot_evaluation.py --target_csv [path_to_target.csv] --mimic_csv [path_to_mimic.csv] --output_dir [path_to_save_plots]
-```
-Example:
-```bash
-python chimera/analysis/plot_evaluation.py --target_csv data/target_telemetry/target_m3_gridmap_slalom.csv --mimic_csv data/evaluation_results/evaluation_results.csv --output_dir data/plots
+tensorboard --logdir data/tensorboard_logs
 ```
 
-## **Repository Structure**
+3) Evaluate a trained model
+```bash
+python scripts/03_evaluate_agent.py --model_path path/to/model.zip
+```
+- Runs a full course and writes telemetry to [`data/evaluation_results/`](data/evaluation_results/). See script flags for details.
 
-*   **/configs/**: Contains all `.yaml` configuration files for experiments, the environment, and the simulation.
-*   **/chimera/**: The core Python source code for the project, structured as a Python package.
-*   **/scripts/**: High-level executable scripts that serve as the main entry points for running the project.
-*   **/data/**: (Not tracked by Git) The default directory for all generated data, including target telemetry, training logs, model checkpoints, and evaluation results.
-*   **/vehicle_setups/**: Contains example JBeam files demonstrating how to modify a vehicle for active control.
+4) Resume training from latest checkpoint
+```bash
+python scripts/04_resume_training.py
+```
+- Continues PPO training, preserving timestep counters and writing to the same run directory.
+
+5) Show improvement: target → random-step → trained
+```bash
+python scripts/05_show_improvement.py
+```
+- Phase A: Target vehicle runs the recorded course.
+- Phase B: Random-step baseline — base car samples a fresh random action each tick using ranges from [`env_config.yaml`](configs/env_config.yaml).
+- Phase C: Trained PPO model — loads most recent model from simulation_config.model_save_path and runs the same course.
+
+---
+
+## Analysis
+
+- FPS-independent reward plot: [`carlpack/analysis/plot_rew.py`](carlpack/analysis/plot_rew.py)
+  - Merges [`training_reward.csv`](training_reward.csv) and [`training_fps.csv`](training_fps.csv) by step.
+  - Produces reward × fps curves and a merged CSV.
+  - Use `--help` for CLI options.
+
+- Your evaluation CSVs from step 3 can be compared to the target reference for metrics/plots using your preferred tools.
+
+---
+
+## Tips and Troubleshooting
+
+- BeamNG paths: Ensure beamng_path and user_path in [`simulation_config.yaml`](configs/simulation_config.yaml) are correct.
+- Target CSV: Set target_data_path to a valid file (e.g., [`data/target_bolide.csv`](data/target_bolide.csv)).
+- Models: If “No model files found” appears in [`05_show_improvement.py`](scripts/05_show_improvement.py), complete training or copy a model into model_save_path/checkpoints.
+- Action ranges: The random-step baseline and PPO both rely on action_parameter_mappings from [`env_config.yaml`](configs/env_config.yaml). Keep min/max realistic.
+- Headless vs GUI: BeamNG.tech may require GUI for recording target data; training can run minimized.
+
+---
+
+## Contributing
+
+- Keep configs minimal and documented.
+- Prefer adding new scripts under [`scripts/`](scripts/) with clear CLI flags.
+- Reuse utilities in [`carlpack/`](carlpack/) and add tests where
