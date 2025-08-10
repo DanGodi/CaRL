@@ -10,6 +10,7 @@ numpy
 matplotlib
 seaborn
 pyyaml
+tensorboard
 
 # Optional for hyperparameter tuning
 # optuna

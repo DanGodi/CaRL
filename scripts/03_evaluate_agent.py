@@ -1,108 +1,234 @@
 # scripts/03_evaluate_agent.py
-# --- FINAL, CORRECTED VERSION ---
+# Batch evaluation with cooldown and y-binned averaging vs target
 
-import pandas as pd
 import argparse
+import time
+import math
 from pathlib import Path
+
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from stable_baselines3 import PPO
+
 from carlpack.utils.config_loader import load_configs
 from carlpack.beamng_control.simulation_manager import SimulationManager
 from carlpack.rl.mimic_env import MimicEnv
 
-def evaluate_agent(model_path: str, output_csv_name: str):
+
+def _run_single_episode(env: MimicEnv, model: PPO) -> pd.DataFrame:
+    """Run one deterministic episode and return per-step telemetry with x,y,z."""
+    obs, _ = env.reset()
+    done = False
+    logs = []
+    while not done:
+        action, _ = model.predict(obs, deterministic=True)
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+
+        # Poll and collect telemetry
+        env.sim_manager.base_vehicle.sensors.poll()
+        state = env.telemetry_streamer.get_state()
+        pos = env.sim_manager.base_vehicle.state.get('pos', [0, 0, 0])
+
+        state['x'] = pos[0]
+        state['y'] = pos[1]
+        state['z'] = pos[2]
+        logs.append(state)
+    return pd.DataFrame(logs)
+
+
+def _bin_average_by_y(mimic_all: pd.DataFrame, target_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Loads a trained agent and runs it in the environment to produce an
-    evaluation telemetry log.
+    Bin mimic telemetry by y using target y values as breakpoints.
+    For each interval [y_i, y_{i+1}), average mimic samples within that interval.
+    If no samples fall in a bin, NaN is used.
+    """
+    # Sort target by y to ensure monotonic bins
+    target_sorted = target_df.sort_values('y').reset_index(drop=True)
+    y_edges = target_sorted['y'].to_numpy()
+    if len(y_edges) < 2:
+        raise ValueError("Target telemetry must contain at least two rows with 'y' to form bins.")
+
+    # Columns to compare: target telemetry columns excluding position/time
+    compare_cols = [c for c in target_sorted.columns if c not in ['time', 'x', 'y', 'z']]
+
+    # Sort mimic by y
+    mimic_sorted = mimic_all.sort_values('y').reset_index(drop=True)
+
+    # Prepare result containers
+    rows = []
+    # Use left-edge y and right-edge y for clarity; also provide mid-point for plotting
+    for i in range(len(y_edges) - 1):
+        y_left = y_edges[i]
+        y_right = y_edges[i + 1]
+        y_mid = 0.5 * (y_left + y_right)
+
+        # Samples in this bin
+        in_bin = mimic_sorted[(mimic_sorted['y'] >= y_left) & (mimic_sorted['y'] < y_right)]
+        row = {
+            'y_left': y_left,
+            'y_right': y_right,
+            'y_mid': y_mid,
+            'count': int(len(in_bin)),
+        }
+
+        # Target reference at left edge (row i)
+        for col in compare_cols:
+            row[f'target_{col}'] = target_sorted.loc[i, col] if col in target_sorted.columns else np.nan
+
+        # Mimic averages within bin
+        for col in compare_cols:
+            if col in mimic_sorted.columns and len(in_bin) > 0:
+                row[f'mimic_{col}'] = in_bin[col].mean()
+            else:
+                row[f'mimic_{col}'] = np.nan
+
+        rows.append(row)
+
+    return pd.DataFrame(rows), compare_cols
+
+
+def evaluate_batched(
+    model_path: str,
+    total_episodes: int,
+    batch_size: int,
+    cooldown_seconds: int,
+    output_csv_name: str,
+    plot_dir_name: str,
+):
+    """
+    Run evaluation in batches: run `batch_size` episodes, close BeamNG for cooldown,
+    and repeat until `total_episodes` are completed. Bin mimic telemetry by target y.
     """
     configs = load_configs()
     sim_cfg = configs['sim']
-    
-    sim_manager = None
-    try:
-        # --- 1. Setup simulation and environment ---
-        print("--- LAUNCHING SIMULATOR FOR EVALUATION ---")
-        sim_manager = SimulationManager(sim_cfg)
-        sim_manager.launch() # Use launch() for a clean, automated start
 
-        # Spawn BOTH the base car and a "ghost" target car for visual comparison
-        # NOTE: This requires a more advanced setup_scenario, let's keep it simple for now
-        # and just spawn the base car that the agent will control.
-        sim_manager.setup_scenario(
-            vehicle_model=sim_cfg['base_vehicle_model'],
-            vehicle_config=sim_cfg.get('base_vehicle_config', None),
-            spawn_target=False # Keep this as False for now
-        )
+    # Load target telemetry (used for bin edges and target lines)
+    target_df = pd.read_csv(sim_cfg['target_data_path'])
 
-        # The environment is created just like in training
-        env = MimicEnv(sim_manager=sim_manager, config=configs)
-        
-        # --- 2. Load the Trained Model ---
-        # The environment must be passed to load() so the model knows the
-        # action and observation spaces.
-        model = PPO.load(model_path, env=env)
-        print(f"Successfully loaded model from: {model_path}")
-        
-        # --- 3. Run the Evaluation Loop ---
-        obs, _ = env.reset()
-        done = False
-        mimic_telemetry_log = []
-        
-        print("\n--- STARTING EVALUATION RUN ---")
-        while not done:
-            # Use deterministic=True to get the agent's best action without random exploration
-            action, _states = model.predict(obs, deterministic=True)
-            
-            # Take a step in the environment
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
+    # Accumulate all mimic samples across all episodes
+    all_samples = []
 
-            # Log the telemetry and position for this step
-            # We get this directly from the info dictionary returned by our modified env.
-            # This is more robust than polling again.
-            
-            # Let's poll manually for now to be safe
-            env.sim_manager.base_vehicle.sensors.poll()
-            state = env.telemetry_streamer.get_state()
-            pos = env.sim_manager.base_vehicle.state.get('pos', [0,0,0])
+    model = None
+    remaining = total_episodes
+    batches = math.ceil(total_episodes / batch_size)
 
-            state['x'] = pos[0]
-            state['y'] = pos[1]
-            state['z'] = pos[2]
-            
-            mimic_telemetry_log.append(state)
+    for b in range(batches):
+        episodes_this_batch = min(batch_size, remaining)
+        remaining -= episodes_this_batch
 
-        # --- 4. Save the Results ---
-        # Construct the full path for the output file
-        output_dir = Path(sim_cfg['data_path']) / "evaluation_results"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / output_csv_name
-        
-        df = pd.DataFrame(mimic_telemetry_log)
-        
-        # Re-order columns to match the target data file for easier comparison
+        sim_manager = None
+        env = None
         try:
-            target_df = pd.read_csv(sim_cfg['target_data_path'])
-            # Use the column order from the target file if it exists
-            df = df.reindex(columns=target_df.columns, fill_value=0)
-        except Exception as e:
-            print(f"Could not re-order columns based on target file: {e}")
+            print(f"\n=== Batch {b + 1}/{batches}: launching simulator ===")
+            sim_manager = SimulationManager(sim_cfg)
+            sim_manager.launch()
+            sim_manager.setup_scenario(
+                vehicle_model=sim_cfg['base_vehicle_model'],
+                vehicle_config=sim_cfg.get('base_vehicle_config', None),
+                spawn_target=False
+            )
 
-        df.to_csv(output_path, index=False)
+            env = MimicEnv(sim_manager=sim_manager, config=configs)
 
-        print("\n--- EVALUATION COMPLETE ---")
-        print(f"Evaluation results saved to: {output_path}")
-        print(f"You can now analyze this file using the plot_evaluation.py script.")
-        
-    finally:
-        if sim_manager:
-            sim_manager.close()
+            if model is None:
+                model = PPO.load(model_path, env=env)
+            else:
+                # Reuse loaded model, attach to the new env
+                model.set_env(env)
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Evaluate a trained CaRL agent.")
+            print(f"Running {episodes_this_batch} episode(s) in this batch...")
+            for ep in range(episodes_this_batch):
+                ep_df = _run_single_episode(env, model)
+                # Keep only numeric columns + y (for safety)
+                # Ensure 'y' is present for binning
+                if 'y' not in ep_df.columns:
+                    print("Warning: no 'y' column found in telemetry; skipping episode.")
+                    continue
+                all_samples.append(ep_df)
+
+        finally:
+            if env is not None:
+                try:
+                    env.close()
+                except Exception:
+                    pass
+            if sim_manager is not None:
+                try:
+                    sim_manager.close()
+                except Exception:
+                    pass
+
+        # Cooldown between batches if more remain
+        if b < batches - 1 and cooldown_seconds > 0:
+            print(f"Cooling down for {cooldown_seconds} seconds...")
+            time.sleep(cooldown_seconds)
+
+    if not all_samples:
+        raise RuntimeError("No telemetry collected. Evaluation produced no data.")
+
+    mimic_all_df = pd.concat(all_samples, ignore_index=True)
+
+    # Bin and average by target y
+    binned_df, compare_cols = _bin_average_by_y(mimic_all_df, target_df)
+
+    # Save aggregated CSV
+    eval_dir = Path(sim_cfg['data_path']) / "evaluation_results"
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    output_csv_path = eval_dir / output_csv_name
+    binned_df.to_csv(output_csv_path, index=False)
+    print(f"\nSaved binned evaluation CSV to: {output_csv_path}")
+
+    # Plot mimic averages vs target as a function of y
+    plot_dir = Path(sim_cfg['data_path']) / "plots" / plot_dir_name
+    plot_dir.mkdir(parents=True, exist_ok=True)
+
+    sns.set_theme(style="whitegrid")
+    x = binned_df['y_mid'] if 'y_mid' in binned_df else binned_df['y_left']
+
+    for col in compare_cols:
+        plt.figure(figsize=(14, 6))
+        # Target (step-wise at left edges approximated by plotting over midpoints)
+        plt.plot(x, binned_df[f'target_{col}'], label=f'Target ({col})', color='green', linestyle='--')
+        # Mimic averages
+        plt.plot(x, binned_df[f'mimic_{col}'], label=f'Mimic avg ({col})', color='blue', alpha=0.9)
+
+        plt.title(f'Y-binned Comparison: {col}', fontsize=14)
+        plt.xlabel('y (bin mid)')
+        plt.ylabel(col)
+        plt.legend()
+        plt.grid(True)
+
+        plot_path = plot_dir / f'binned_{col}.png'
+        plt.savefig(plot_path)
+        plt.close()
+        print(f"Saved plot: {plot_path}")
+
+    print("\nEvaluation complete.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate a trained CaRL agent with y-binned averaging across episodes.")
     parser.add_argument('--model_path', type=str, required=True, help="Path to the saved model .zip file.")
-    parser.add_argument('--output_name', type=str, default='evaluation_results.csv', help="Name for the output CSV file.")
-    
+    parser.add_argument('--episodes', type=int, default=10, help="Total number of episodes to run.")
+    parser.add_argument('--batch_size', type=int, default=3, help="Number of episodes per batch before cooldown.")
+    parser.add_argument('--cooldown_seconds', type=int, default=10, help="Seconds to sleep between batches after closing BeamNG.")
+    parser.add_argument('--output_csv', type=str, default='evaluation_binned.csv', help="Output CSV filename for binned results.")
+    parser.add_argument('--plot_dir_name', type=str, default='evaluation_binned', help="Subdirectory under data/plots for saved plots.")
     args = parser.parse_args()
-    evaluate_agent(args.model_path, args.output_name)
+
+    evaluate_batched(
+        model_path=args.model_path,
+        total_episodes=args.episodes,
+        batch_size=args.batch_size,
+        cooldown_seconds=args.cooldown_seconds,
+        output_csv_name=args.output_csv,
+        plot_dir_name=args.plot_dir_name,
+    )
+
+
+if __name__ == "__main__":
+    main()
